@@ -1,5 +1,7 @@
 # Time Calculator
 
+**Live: <https://gustavochanchien.github.io/time-calculator/>**
+
 A small, fast web app for the handful of time questions that are annoying to
 work out in your head. Mobile-first — built to be opened one-handed on a phone
 at 1am — and it runs entirely in the browser against your own clock.
@@ -58,6 +60,16 @@ npm run dev
 | `npm test`        | Run the test suite once                   |
 | `npm run lint`    | oxlint                                    |
 | `npm run gen:map` | Regenerate the world map path (see below) |
+
+## Deploying
+
+Pushing to `main` builds and publishes to GitHub Pages via
+`.github/workflows/deploy.yml`, which runs the tests first and will not deploy
+a red build.
+
+Vite is configured with `base: './'`, so the bundle uses relative asset URLs
+and the same `dist/` works at a domain root, at a Pages project subpath, or
+opened straight off disk. Nothing hardcodes the repository name.
 
 ## How it is put together
 
