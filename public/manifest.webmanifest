@@ -1,0 +1,13 @@
+{
+  "name": "Time Calculator",
+  "short_name": "Time",
+  "description": "Sleep cycles, countdowns, hour math and time zones.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d11",
+  "theme_color": "#0b0d11",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
