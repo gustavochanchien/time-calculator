@@ -115,3 +115,24 @@ export function nearestCycleBoundary(
   const at = new Date(asleepAt + cycles * cycleMs)
   return { cycles, at, offsetMs: at.getTime() - wakeTime.getTime() }
 }
+
+/** The cycle count to lead with when nothing has been chosen yet. */
+export const RECOMMENDED_CYCLES = 5
+
+/**
+ * Which option to show as *the* answer.
+ *
+ * Five cycles — seven and a half hours asleep — is the target when it is
+ * reachable. Working backwards from an alarm it often isn't, because the
+ * bedtime it implies has already gone by; then the answer is the most sleep
+ * still on the table.
+ */
+export function recommendedCycles(options: CycleOption[], now: Date): number {
+  const reachable = options.filter((option) => option.at.getTime() > now.getTime())
+  if (reachable.some((option) => option.cycles === RECOMMENDED_CYCLES)) {
+    return RECOMMENDED_CYCLES
+  }
+  if (reachable.length) return Math.max(...reachable.map((option) => option.cycles))
+  // Every option is in the past: it is very late, so offer the shortest night.
+  return Math.min(...options.map((option) => option.cycles))
+}

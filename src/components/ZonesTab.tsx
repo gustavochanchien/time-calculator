@@ -4,26 +4,39 @@ import {
   clockParts,
   formatDayLabel,
   formatTime,
-  minutesOfDay,
   nextOccurrence,
   offsetMinutes,
   parseTimeInput,
-  toTimeInputValue,
 } from '../lib/time'
 import {
   ZONES,
   describeRelativeOffset,
   dstStatus,
   formatOffset,
+  headlineCity,
   matchZones,
-  resolveZone,
+  resolvePlace,
   zoneAbbreviation,
   zoneLongName,
+  type Place,
 } from '../lib/zones'
 import { WorldMap } from './WorldMap'
-import { Card, Segmented } from './ui'
+import { Panel, Toggle } from './ui'
 
-const DEFAULT_COMPARISONS = ['America/New_York', 'Europe/London', 'Asia/Tokyo']
+/** A row as persisted: the zone, plus which of its cities the user picked. */
+interface SavedZone {
+  id: string
+  city: string
+}
+
+const DEFAULT_ZONES: SavedZone[] = [
+  { id: 'America/New_York', city: 'New York' },
+  { id: 'America/Chicago', city: 'Austin' },
+  { id: 'America/Denver', city: 'Albuquerque' },
+  { id: 'America/Los_Angeles', city: 'Los Angeles' },
+  { id: 'Europe/London', city: 'London' },
+  { id: 'Asia/Taipei', city: 'Taipei' },
+]
 
 export function ZonesTab({
   now,
@@ -34,15 +47,15 @@ export function ZonesTab({
   localZone: string
   hour12: boolean
 }) {
+  const [saved, setSaved] = usePersistentState<SavedZone[]>('zones.places', DEFAULT_ZONES)
   const [homeId, setHomeId] = usePersistentState('zones.home', localZone)
-  const [zoneIds, setZoneIds] = usePersistentState<string[]>(
-    'zones.list',
-    DEFAULT_COMPARISONS.filter((id) => id !== localZone),
-  )
   const [mode, setMode] = usePersistentState<'now' | 'at'>('zones.mode', 'now')
   const [timeInput, setTimeInput] = usePersistentState('zones.time', '09:00')
 
-  const home = resolveZone(homeId)
+  const home = resolvePlace(
+    homeId,
+    saved.find((entry) => entry.id === homeId)?.city,
+  )
 
   const reference = useMemo(() => {
     if (mode === 'now') return now
@@ -51,149 +64,151 @@ export function ZonesTab({
     return nextOccurrence(now, homeId, Math.floor(minutes / 60), minutes % 60)
   }, [mode, timeInput, now, homeId])
 
+  /** The home zone always leads, whether or not it is in the saved list. */
+  const places = useMemo(() => {
+    const rest = saved.filter((entry) => entry.id !== homeId)
+    const entries: Place[] = [home, ...rest.map((entry) => resolvePlace(entry.id, entry.city))]
+    return entries
+  }, [saved, homeId, home])
+
   const rows = useMemo(() => {
-    const ids = [homeId, ...zoneIds.filter((id) => id !== homeId)]
     const homeOffset = offsetMinutes(reference, homeId)
-    return ids.map((id) => {
-      const zone = resolveZone(id)
-      const offset = offsetMinutes(reference, id)
-      const hour = clockParts(reference, id).hour
+    return places.map((place) => {
+      const offset = offsetMinutes(reference, place.zone.id)
+      const hour = clockParts(reference, place.zone.id).hour
       return {
-        zone,
-        isHome: id === homeId,
+        place,
+        isHome: place.zone.id === homeId,
         offset,
         delta: offset - homeOffset,
-        abbreviation: zoneAbbreviation(reference, id),
-        longName: zoneLongName(reference, id),
-        dst: dstStatus(reference, id),
+        abbreviation: zoneAbbreviation(reference, place.zone.id),
+        longName: zoneLongName(reference, place.zone.id),
+        dst: dstStatus(reference, place.zone.id),
         night: hour < 7 || hour >= 22,
       }
     })
-  }, [homeId, zoneIds, reference])
-
-  const mapZones = useMemo(() => rows.map((row) => row.zone), [rows])
+  }, [places, homeId, reference])
 
   return (
     <>
-      <Card>
-        <div className="card-head">
-          <Segmented
-            label="Reference time"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'now', label: 'Right now' },
-              { value: 'at', label: 'At a set time' },
-            ]}
-          />
-          {mode === 'at' && (
-            <>
+      <Panel>
+        <Toggle
+          label="Reference time"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'now', label: 'Right now' },
+            { value: 'at', label: 'At a set time' },
+          ]}
+        />
+
+        {mode === 'at' && (
+          <div className="row">
+            <div className="field">
+              <label className="label" htmlFor="zone-time">
+                Time in {home.city.name}
+              </label>
               <input
+                id="zone-time"
                 type="time"
-                className="inline-time"
-                aria-label={`Time in ${home.city}`}
                 value={timeInput}
                 onChange={(event) => setTimeInput(event.target.value)}
               />
+            </div>
+          </div>
+        )}
+
+        <ul className="zones">
+          {rows.map((row) => (
+            <li key={`${row.place.zone.id}:${row.place.city.name}`}>
               <button
                 type="button"
-                className="chip"
-                onClick={() => setTimeInput(toTimeInputValue(minutesOfDay(now, homeId)))}
+                className={`zone${row.isHome ? ' is-home' : ''}${row.night ? ' is-night' : ''}`}
+                aria-pressed={row.isHome}
+                title={row.isHome ? 'This is your home zone' : `Compare against ${row.place.city.name}`}
+                onClick={() => setHomeId(row.place.zone.id)}
               >
-                Now
+                <span className="zone-main">
+                  {/* The city gets the whole first line; everything else is
+                      metadata and shares the second one. */}
+                  <span className="zone-city">{row.place.city.name}</span>
+                  <span className="zone-sub">
+                    {row.abbreviation && <span className="tag">{row.abbreviation}</span>}
+                    {row.dst.active && <span className="tag">DST</span>}
+                    <span className="zone-sub-text">
+                      {/* The offset and the spelled-out name are reference
+                          detail: useful on a wide screen, the first things to
+                          go when the row has to fit a phone. */}
+                      <span className="wide-only">UTC{formatOffset(row.offset)} · </span>
+                      {row.isHome ? (
+                        <>
+                          your zone<span className="wide-only"> · {row.longName}</span>
+                        </>
+                      ) : (
+                        describeRelativeOffset(row.delta)
+                      )}
+                    </span>
+                  </span>
+                </span>
+                <span className="zone-clock">
+                  <b className="tnum">{formatTime(reference, { timeZone: row.place.zone.id, hour12 })}</b>
+                  <span>
+                    {formatDayLabel(reference, now, row.place.zone.id)}
+                    {row.night ? ' · night' : ''}
+                  </span>
+                </span>
               </button>
-            </>
-          )}
-        </div>
-
-        <p className="card-note zone-reference">
-          {mode === 'now' ? 'Comparing against' : 'When it is'}{' '}
-          <strong>{formatTime(reference, { timeZone: homeId, hour12 })}</strong> in {home.city} (
-          {formatDayLabel(reference, now, homeId)})
-        </p>
-
-        <ul className="zone-list">
-          {rows.map((row) => (
-            <li
-              key={row.zone.id}
-              className={`zone${row.isHome ? ' is-home' : ''}${row.night ? ' night' : ''}`}
-            >
-              <div className="zone-main">
-                <span className="zone-name">
-                  {row.zone.city}
-                  {row.abbreviation && <span className="zone-abbr">{row.abbreviation}</span>}
-                  {row.dst.active && <span className="zone-abbr">DST</span>}
-                </span>
-                <span className="zone-sub">
-                  {row.longName || row.zone.region} · UTC{formatOffset(row.offset)}
-                  {row.isHome ? ' · your zone' : ` · ${describeRelativeOffset(row.delta)}`}
-                </span>
-              </div>
-              <div className="zone-time">
-                {formatTime(reference, { timeZone: row.zone.id, hour12 })}
-                <small>
-                  {formatDayLabel(reference, now, row.zone.id)}
-                  {row.night ? ' · night' : ''}
-                </small>
-              </div>
               {!row.isHome && (
-                <div className="zone-actions">
-                  <button
-                    type="button"
-                    className="zone-action"
-                    title={`Make ${row.zone.city} your home zone`}
-                    aria-label={`Make ${row.zone.city} your home zone`}
-                    onClick={() => {
-                      setZoneIds((ids) => [...ids.filter((id) => id !== row.zone.id), homeId])
-                      setHomeId(row.zone.id)
-                    }}
-                  >
-                    Set home
-                  </button>
-                  <button
-                    type="button"
-                    className="zone-action"
-                    title={`Remove ${row.zone.city}`}
-                    aria-label={`Remove ${row.zone.city}`}
-                    onClick={() => setZoneIds((ids) => ids.filter((id) => id !== row.zone.id))}
-                  >
-                    Remove
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="zone-x"
+                  aria-label={`Remove ${row.place.city.name}`}
+                  title={`Remove ${row.place.city.name}`}
+                  onClick={() =>
+                    setSaved((entries) =>
+                      entries.filter(
+                        (entry) =>
+                          !(entry.id === row.place.zone.id && entry.city === row.place.city.name),
+                      ),
+                    )
+                  }
+                >
+                  ×
+                </button>
               )}
             </li>
           ))}
         </ul>
 
-        <div className="zone-search-wrap">
-          <ZoneSearch
-            at={reference}
-            exclude={[homeId, ...zoneIds]}
-            onPick={(id) => setZoneIds((ids) => [...ids, id])}
-          />
-        </div>
-      </Card>
+        <ZoneSearch
+          at={reference}
+          taken={places.map((place) => `${place.zone.id}:${place.city.name}`)}
+          onPick={(entry) => setSaved((entries) => [...entries, entry])}
+        />
 
-      <Card title="Where that is">
-        <WorldMap zones={mapZones} homeId={homeId} at={reference} />
-        <p className="hint">
-          Bands are 15° wide and centred on each zone&rsquo;s actual UTC offset, so a country that
-          runs on a neighbour&rsquo;s clock sits off its own longitude — which is most of why time
-          zones feel arbitrary. The shaded half is where the sun is down at the reference time.
+      </Panel>
+
+      <Panel title="Where that is">
+        <WorldMap places={places} homeId={homeId} at={reference} />
+        <p className="note">
+          Each 15° band is tinted by its UTC offset, so the four stripes across the United States
+          are Pacific, Mountain, Central and Eastern. Bands are longitude, not politics — real
+          borders detour around state and national lines, and the shaded half is where the sun is
+          down at the reference time.
         </p>
-      </Card>
+      </Panel>
     </>
   )
 }
 
 function ZoneSearch({
   at,
-  exclude,
+  taken,
   onPick,
 }: {
   at: Date
-  exclude: string[]
-  onPick: (id: string) => void
+  taken: string[]
+  onPick: (entry: SavedZone) => void
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -201,82 +216,81 @@ function ZoneSearch({
   const blurTimeout = useRef<number>(0)
 
   const results = useMemo(
-    () => matchZones(query).filter((match) => !exclude.includes(match.zone.id)),
-    [query, exclude],
+    () => matchZones(query).filter((m) => !taken.includes(`${m.zone.id}:${m.city.name}`)),
+    [query, taken],
   )
 
-  const pick = (id: string) => {
-    onPick(id)
+  const pick = (index: number) => {
+    const match = results[index]
+    if (!match) return
+    window.clearTimeout(blurTimeout.current)
+    onPick({ id: match.zone.id, city: match.city.name })
     setQuery('')
     setOpen(false)
     setActive(0)
   }
 
   return (
-    <div className="zone-search field">
-      <label htmlFor="zone-search">Add a zone</label>
-      <div className="zone-search-box">
-        <input
-          id="zone-search"
-          type="text"
-          autoComplete="off"
-          placeholder="City, country, or an abbreviation like PST or JST"
-          value={query}
-          onFocus={() => setOpen(true)}
-          onBlur={() => {
-            // Let a click on a result land before the list unmounts.
-            blurTimeout.current = window.setTimeout(() => setOpen(false), 120)
-          }}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setOpen(true)
-            setActive(0)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') {
-              event.preventDefault()
-              setActive((i) => Math.min(i + 1, results.length - 1))
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault()
-              setActive((i) => Math.max(i - 1, 0))
-            } else if (event.key === 'Enter' && results[active]) {
-              event.preventDefault()
-              window.clearTimeout(blurTimeout.current)
-              pick(results[active].zone.id)
-            } else if (event.key === 'Escape') {
-              setOpen(false)
-            }
-          }}
-        />
-        {open && results.length > 0 && (
-          <ul className="zone-results">
-            {results.slice(0, 12).map(({ zone, matched }, index) => (
-              <li key={zone.id} data-active={index === active}>
-                <button
-                  type="button"
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => {
-                    window.clearTimeout(blurTimeout.current)
-                    pick(zone.id)
-                  }}
-                >
-                  <span className="result-city">{zone.city}</span>
-                  <span className="result-region">
-                    {matched.toLowerCase() === zone.city.toLowerCase()
-                      ? zone.region
-                      : `${zone.region} · ${matched}`}
-                  </span>
-                  <span className="result-meta">
-                    {zoneAbbreviation(at, zone.id)} · UTC{formatOffset(offsetMinutes(at, zone.id))}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <p className="hint">
-        {ZONES.length} zones, searchable by city, region or the names people actually use.
+    <div className="search">
+      <input
+        type="text"
+        autoComplete="off"
+        aria-label="Add a place"
+        placeholder="Add a city, country or abbreviation…"
+        value={query}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          // Let a click on a result land before the list unmounts.
+          blurTimeout.current = window.setTimeout(() => setOpen(false), 120)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setOpen(true)
+          setActive(0)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setActive((i) => Math.min(i + 1, results.length - 1))
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            setActive((i) => Math.max(i - 1, 0))
+          } else if (event.key === 'Enter') {
+            event.preventDefault()
+            pick(active)
+          } else if (event.key === 'Escape') {
+            setOpen(false)
+          }
+        }}
+      />
+      {open && results.length > 0 && (
+        <ul className="results">
+          {results.map(({ zone, city, matched }, index) => (
+            <li key={`${zone.id}:${city.name}`} data-active={index === active}>
+              <button
+                type="button"
+                onMouseEnter={() => setActive(index)}
+                onClick={() => pick(index)}
+              >
+                <span className="r-city">{city.name}</span>
+                <span className="r-sub">
+                  {zone.region}
+                  {matched !== city.name && matched !== headlineCity(zone).name
+                    ? ` · ${matched}`
+                    : ''}
+                </span>
+                <span className="r-off">
+                  {zoneAbbreviation(at, zone.id)} · UTC{formatOffset(offsetMinutes(at, zone.id))}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="note">
+        Tap a row to compare everything against it.{' '}
+        {ZONES.reduce((total, zone) => total + zone.cities.length, 0)} cities across {ZONES.length}{' '}
+        zones — try “Albuquerque”, “PST” or “zulu”.
       </p>
     </div>
   )

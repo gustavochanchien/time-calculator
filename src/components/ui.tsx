@@ -1,24 +1,20 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-export function Card({
+export function Panel({
   title,
-  note,
-  actions,
+  action,
   children,
 }: {
   title?: string
-  note?: ReactNode
-  actions?: ReactNode
+  action?: ReactNode
   children: ReactNode
 }) {
   return (
-    <section className="card">
-      {(title || actions) && (
-        <div className="card-head">
-          {title && <h2 className="card-title">{title}</h2>}
-          {note && <p className="card-note">{note}</p>}
-          {actions && <div className="spacer" />}
-          {actions}
+    <section className="panel">
+      {(title || action) && (
+        <div className="panel-head">
+          {title && <h2 className="panel-title">{title}</h2>}
+          {action && <div className="end">{action}</div>}
         </div>
       )}
       {children}
@@ -26,7 +22,8 @@ export function Card({
   )
 }
 
-export function Segmented<T extends string>({
+/** The one either/or control in the app. Full width, because these choices matter. */
+export function Toggle<T extends string>({
   value,
   options,
   onChange,
@@ -38,7 +35,7 @@ export function Segmented<T extends string>({
   label: string
 }) {
   return (
-    <div className="segmented" role="group" aria-label={label}>
+    <div className="toggle" role="group" aria-label={label}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -49,6 +46,28 @@ export function Segmented<T extends string>({
           {option.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** The answer. One per screen, and nothing else is allowed to be this big. */
+export function Hero({
+  label,
+  value,
+  meta,
+  actions,
+}: {
+  label: string
+  value: string
+  meta?: ReactNode
+  actions?: ReactNode
+}) {
+  return (
+    <div className="hero">
+      <p className="hero-label">{label}</p>
+      <p className="hero-value tnum">{value}</p>
+      {meta && <p className="hero-meta">{meta}</p>}
+      {actions && <div className="hero-actions">{actions}</div>}
     </div>
   )
 }
@@ -71,8 +90,8 @@ export function Slider({
   format: (value: number) => string
 }) {
   return (
-    <label className="slider-field">
-      <span className="field-label">{label}</span>
+    <label className="slider">
+      <span className="label">{label}</span>
       <output>{format(value)}</output>
       <input
         type="range"
@@ -86,7 +105,7 @@ export function Slider({
   )
 }
 
-/** Copies text and confirms it in place, since there is no toast anywhere else. */
+/** Copies text and confirms in place, since there is no toast anywhere else. */
 export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -99,7 +118,7 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
   return (
     <button
       type="button"
-      className="icon-button"
+      className="btn"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(
           () => setCopied(true),
@@ -109,5 +128,47 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
     >
       {copied ? 'Copied' : label}
     </button>
+  )
+}
+
+/** A disclosure for settings — open it once, forget it exists. */
+export function Detail({ summary, children }: { summary: ReactNode; children: ReactNode }) {
+  return (
+    <details className="detail">
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  )
+}
+
+/** A details-based menu that closes when you click away or press Escape. */
+export function Menu({ label, icon, children }: { label: string; icon: ReactNode; children: ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    const close = (event: Event) => {
+      const element = ref.current
+      if (!element?.open) return
+      if (event instanceof KeyboardEvent) {
+        if (event.key === 'Escape') element.open = false
+        return
+      }
+      if (!element.contains(event.target as Node)) element.open = false
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [])
+
+  return (
+    <details className="menu" ref={ref}>
+      <summary aria-label={label} title={label}>
+        {icon}
+      </summary>
+      <div className="menu-body">{children}</div>
+    </details>
   )
 }

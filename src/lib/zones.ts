@@ -1,134 +1,582 @@
 /**
  * A curated set of time zones — the ones people actually schedule against,
- * rather than the full IANA database of ~600. Each carries coordinates for the
- * map and the informal names people search by ("EST", "Pacific", "Zulu").
+ * rather than the full IANA database of ~600.
+ *
+ * Zones are keyed by IANA id, but people think in cities, and a zone usually
+ * has several that matter. Denver and Albuquerque are both US Mountain; a list
+ * showing "Denver" to someone who asked for Albuquerque is quietly wrong. So
+ * each zone carries its notable cities with their own coordinates, and a row
+ * in the UI is a *place*: a zone plus which of its cities you picked.
  */
 
 import { clockParts, offsetMinutes } from './time'
 
+export interface City {
+  name: string
+  lat: number
+  lon: number
+}
+
 export interface Zone {
   /** IANA identifier. */
   id: string
-  city: string
   region: string
-  lat: number
-  lon: number
+  /** Notable cities, headline first. The headline names the zone in menus. */
+  cities: City[]
   /**
    * Standard-time abbreviation, and the daylight-time one where the zone
    * shifts. Carried here because browsers hand back bare offsets ("GMT+9")
    * for most zones outside the US, and "JST" is the name people use.
    */
   abbr: [standard: string, daylight?: string]
-  /** Informal names and abbreviations, for search. */
+  /** Non-city search terms: countries, abbreviations, nicknames. */
   aliases: string[]
 }
 
 export const ZONES: Zone[] = [
-  // North America
-  { id: 'America/Los_Angeles', city: 'Los Angeles', region: 'US West', lat: 34.05, lon: -118.24, abbr: ['PST', 'PDT'], aliases: ['PST', 'PDT', 'Pacific', 'LA', 'San Francisco', 'Seattle', 'Vancouver', 'Portland', 'Vegas'] },
-  { id: 'America/Denver', city: 'Denver', region: 'US Mountain', lat: 39.74, lon: -104.99, abbr: ['MST', 'MDT'], aliases: ['MST', 'MDT', 'Mountain', 'Salt Lake City', 'Albuquerque', 'Santa Fe'] },
-  { id: 'America/Phoenix', city: 'Phoenix', region: 'Arizona', lat: 33.45, lon: -112.07, abbr: ['MST'], aliases: ['MST', 'Arizona', 'no DST', 'Tucson'] },
-  { id: 'America/Chicago', city: 'Chicago', region: 'US Central', lat: 41.88, lon: -87.63, abbr: ['CST', 'CDT'], aliases: ['CST', 'CDT', 'Central', 'Dallas', 'Houston', 'Austin', 'Minneapolis', 'Mexico City'] },
-  { id: 'America/New_York', city: 'New York', region: 'US East', lat: 40.71, lon: -74.01, abbr: ['EST', 'EDT'], aliases: ['EST', 'EDT', 'Eastern', 'NYC', 'Boston', 'Atlanta', 'Miami', 'Toronto', 'DC', 'Washington'] },
-  { id: 'America/Anchorage', city: 'Anchorage', region: 'Alaska', lat: 61.22, lon: -149.9, abbr: ['AKST', 'AKDT'], aliases: ['AKST', 'AKDT', 'Alaska'] },
-  { id: 'Pacific/Honolulu', city: 'Honolulu', region: 'Hawaii', lat: 21.31, lon: -157.86, abbr: ['HST'], aliases: ['HST', 'Hawaii', 'no DST'] },
-  { id: 'America/Halifax', city: 'Halifax', region: 'Atlantic Canada', lat: 44.65, lon: -63.58, abbr: ['AST', 'ADT'], aliases: ['AST', 'ADT', 'Atlantic'] },
-  { id: 'America/Mexico_City', city: 'Mexico City', region: 'Mexico', lat: 19.43, lon: -99.13, abbr: ['CST'], aliases: ['CST', 'Mexico', 'CDMX'] },
+  // ------------------------------------------------------------ Americas
+  {
+    id: 'America/Los_Angeles',
+    region: 'US Pacific',
+    abbr: ['PST', 'PDT'],
+    aliases: ['Pacific', 'west coast', 'California'],
+    cities: [
+      { name: 'Los Angeles', lat: 34.05, lon: -118.24 },
+      { name: 'San Francisco', lat: 37.77, lon: -122.42 },
+      { name: 'Seattle', lat: 47.61, lon: -122.33 },
+      { name: 'San Diego', lat: 32.72, lon: -117.16 },
+      { name: 'Las Vegas', lat: 36.17, lon: -115.14 },
+      { name: 'Portland', lat: 45.52, lon: -122.68 },
+      { name: 'Vancouver', lat: 49.28, lon: -123.12 },
+    ],
+  },
+  {
+    id: 'America/Denver',
+    region: 'US Mountain',
+    abbr: ['MST', 'MDT'],
+    aliases: ['Mountain', 'New Mexico', 'Colorado', 'Utah'],
+    cities: [
+      { name: 'Denver', lat: 39.74, lon: -104.99 },
+      { name: 'Albuquerque', lat: 35.08, lon: -106.65 },
+      { name: 'Santa Fe', lat: 35.69, lon: -105.94 },
+      { name: 'Salt Lake City', lat: 40.76, lon: -111.89 },
+      { name: 'Boise', lat: 43.62, lon: -116.2 },
+      { name: 'El Paso', lat: 31.76, lon: -106.49 },
+    ],
+  },
+  {
+    id: 'America/Phoenix',
+    region: 'Arizona',
+    abbr: ['MST'],
+    aliases: ['Arizona', 'no DST'],
+    cities: [
+      { name: 'Phoenix', lat: 33.45, lon: -112.07 },
+      { name: 'Tucson', lat: 32.22, lon: -110.97 },
+    ],
+  },
+  {
+    id: 'America/Chicago',
+    region: 'US Central',
+    abbr: ['CST', 'CDT'],
+    aliases: ['Central', 'Texas', 'midwest'],
+    cities: [
+      { name: 'Chicago', lat: 41.88, lon: -87.63 },
+      { name: 'Austin', lat: 30.27, lon: -97.74 },
+      { name: 'Dallas', lat: 32.78, lon: -96.8 },
+      { name: 'Houston', lat: 29.76, lon: -95.37 },
+      { name: 'San Antonio', lat: 29.42, lon: -98.49 },
+      { name: 'Minneapolis', lat: 44.98, lon: -93.27 },
+      { name: 'Nashville', lat: 36.16, lon: -86.78 },
+      { name: 'New Orleans', lat: 29.95, lon: -90.07 },
+    ],
+  },
+  {
+    id: 'America/New_York',
+    region: 'US Eastern',
+    abbr: ['EST', 'EDT'],
+    aliases: ['Eastern', 'NYC', 'east coast'],
+    cities: [
+      { name: 'New York', lat: 40.71, lon: -74.01 },
+      { name: 'Washington DC', lat: 38.91, lon: -77.04 },
+      { name: 'Boston', lat: 42.36, lon: -71.06 },
+      { name: 'Philadelphia', lat: 39.95, lon: -75.17 },
+      { name: 'Atlanta', lat: 33.75, lon: -84.39 },
+      { name: 'Miami', lat: 25.76, lon: -80.19 },
+      { name: 'Detroit', lat: 42.33, lon: -83.05 },
+      { name: 'Toronto', lat: 43.65, lon: -79.38 },
+    ],
+  },
+  {
+    id: 'America/Anchorage',
+    region: 'Alaska',
+    abbr: ['AKST', 'AKDT'],
+    aliases: ['Alaska'],
+    cities: [{ name: 'Anchorage', lat: 61.22, lon: -149.9 }],
+  },
+  {
+    id: 'Pacific/Honolulu',
+    region: 'Hawaii',
+    abbr: ['HST'],
+    aliases: ['Hawaii', 'no DST'],
+    cities: [{ name: 'Honolulu', lat: 21.31, lon: -157.86 }],
+  },
+  {
+    id: 'America/Halifax',
+    region: 'Atlantic Canada',
+    abbr: ['AST', 'ADT'],
+    aliases: ['Atlantic', 'Nova Scotia'],
+    cities: [{ name: 'Halifax', lat: 44.65, lon: -63.58 }],
+  },
+  {
+    id: 'America/Mexico_City',
+    region: 'Mexico',
+    abbr: ['CST'],
+    aliases: ['Mexico', 'CDMX', 'no DST'],
+    cities: [
+      { name: 'Mexico City', lat: 19.43, lon: -99.13 },
+      { name: 'Guadalajara', lat: 20.67, lon: -103.35 },
+    ],
+  },
+  {
+    id: 'America/Bogota',
+    region: 'Colombia & Peru',
+    abbr: ['COT'],
+    aliases: ['Colombia', 'Peru', 'Ecuador'],
+    cities: [
+      { name: 'Bogotá', lat: 4.71, lon: -74.07 },
+      { name: 'Lima', lat: -12.05, lon: -77.04 },
+      { name: 'Quito', lat: -0.18, lon: -78.47 },
+    ],
+  },
+  {
+    id: 'America/Sao_Paulo',
+    region: 'Brazil',
+    abbr: ['BRT'],
+    aliases: ['Brazil', 'no DST'],
+    cities: [
+      { name: 'São Paulo', lat: -23.55, lon: -46.63 },
+      { name: 'Rio de Janeiro', lat: -22.91, lon: -43.17 },
+      { name: 'Brasília', lat: -15.79, lon: -47.88 },
+    ],
+  },
+  {
+    id: 'America/Argentina/Buenos_Aires',
+    region: 'Argentina',
+    abbr: ['ART'],
+    aliases: ['Argentina'],
+    cities: [{ name: 'Buenos Aires', lat: -34.6, lon: -58.38 }],
+  },
+  {
+    id: 'America/Santiago',
+    region: 'Chile',
+    abbr: ['CLT', 'CLST'],
+    aliases: ['Chile'],
+    cities: [{ name: 'Santiago', lat: -33.45, lon: -70.67 }],
+  },
 
-  // South America
-  { id: 'America/Bogota', city: 'Bogotá', region: 'Colombia', lat: 4.71, lon: -74.07, abbr: ['COT'], aliases: ['COT', 'Colombia', 'Lima', 'Peru', 'Quito'] },
-  { id: 'America/Sao_Paulo', city: 'São Paulo', region: 'Brazil', lat: -23.55, lon: -46.63, abbr: ['BRT'], aliases: ['BRT', 'Brazil', 'Rio', 'Rio de Janeiro'] },
-  { id: 'America/Argentina/Buenos_Aires', city: 'Buenos Aires', region: 'Argentina', lat: -34.6, lon: -58.38, abbr: ['ART'], aliases: ['ART', 'Argentina'] },
-  { id: 'America/Santiago', city: 'Santiago', region: 'Chile', lat: -33.45, lon: -70.67, abbr: ['CLT', 'CLST'], aliases: ['CLT', 'Chile'] },
+  // ------------------------------------------------- Europe & Africa
+  {
+    id: 'UTC',
+    region: 'Coordinated Universal Time',
+    abbr: ['UTC'],
+    aliases: ['GMT', 'Zulu', 'Z', 'universal'],
+    cities: [{ name: 'UTC', lat: 0, lon: 0 }],
+  },
+  {
+    id: 'Europe/London',
+    region: 'UK & Ireland',
+    abbr: ['GMT', 'BST'],
+    aliases: ['UK', 'Britain', 'England', 'Ireland'],
+    cities: [
+      { name: 'London', lat: 51.51, lon: -0.13 },
+      { name: 'Dublin', lat: 53.35, lon: -6.26 },
+      { name: 'Edinburgh', lat: 55.95, lon: -3.19 },
+      { name: 'Manchester', lat: 53.48, lon: -2.24 },
+    ],
+  },
+  {
+    id: 'Europe/Lisbon',
+    region: 'Portugal',
+    abbr: ['WET', 'WEST'],
+    aliases: ['Portugal'],
+    cities: [{ name: 'Lisbon', lat: 38.72, lon: -9.14 }],
+  },
+  {
+    id: 'Europe/Paris',
+    region: 'Central Europe',
+    abbr: ['CET', 'CEST'],
+    aliases: ['France', 'Germany', 'Spain', 'Italy', 'Netherlands', 'Poland', 'Sweden'],
+    cities: [
+      { name: 'Paris', lat: 48.86, lon: 2.35 },
+      { name: 'Berlin', lat: 52.52, lon: 13.4 },
+      { name: 'Madrid', lat: 40.42, lon: -3.7 },
+      { name: 'Rome', lat: 41.9, lon: 12.5 },
+      { name: 'Amsterdam', lat: 52.37, lon: 4.9 },
+      { name: 'Brussels', lat: 50.85, lon: 4.35 },
+      { name: 'Zurich', lat: 47.38, lon: 8.54 },
+      { name: 'Vienna', lat: 48.21, lon: 16.37 },
+      { name: 'Stockholm', lat: 59.33, lon: 18.07 },
+      { name: 'Oslo', lat: 59.91, lon: 10.75 },
+      { name: 'Copenhagen', lat: 55.68, lon: 12.57 },
+      { name: 'Prague', lat: 50.08, lon: 14.44 },
+      { name: 'Warsaw', lat: 52.23, lon: 21.01 },
+    ],
+  },
+  {
+    id: 'Europe/Athens',
+    region: 'Eastern Europe',
+    abbr: ['EET', 'EEST'],
+    aliases: ['Greece', 'Finland', 'Romania', 'Ukraine'],
+    cities: [
+      { name: 'Athens', lat: 37.98, lon: 23.73 },
+      { name: 'Helsinki', lat: 60.17, lon: 24.94 },
+      { name: 'Bucharest', lat: 44.43, lon: 26.1 },
+      { name: 'Kyiv', lat: 50.45, lon: 30.52 },
+    ],
+  },
+  {
+    id: 'Europe/Istanbul',
+    region: 'Türkiye',
+    abbr: ['TRT'],
+    aliases: ['Turkey', 'no DST'],
+    cities: [
+      { name: 'Istanbul', lat: 41.01, lon: 28.98 },
+      { name: 'Ankara', lat: 39.93, lon: 32.86 },
+    ],
+  },
+  {
+    id: 'Europe/Moscow',
+    region: 'Western Russia',
+    abbr: ['MSK'],
+    aliases: ['Russia', 'no DST'],
+    cities: [
+      { name: 'Moscow', lat: 55.76, lon: 37.62 },
+      { name: 'Saint Petersburg', lat: 59.93, lon: 30.34 },
+    ],
+  },
+  {
+    id: 'Africa/Lagos',
+    region: 'West Africa',
+    abbr: ['WAT'],
+    aliases: ['Nigeria', 'Ghana', 'Algeria'],
+    cities: [
+      { name: 'Lagos', lat: 6.52, lon: 3.38 },
+      { name: 'Accra', lat: 5.6, lon: -0.19 },
+      { name: 'Algiers', lat: 36.75, lon: 3.06 },
+    ],
+  },
+  {
+    id: 'Africa/Cairo',
+    region: 'Egypt',
+    abbr: ['EET', 'EEST'],
+    aliases: ['Egypt'],
+    cities: [{ name: 'Cairo', lat: 30.04, lon: 31.24 }],
+  },
+  {
+    id: 'Africa/Nairobi',
+    region: 'East Africa',
+    abbr: ['EAT'],
+    aliases: ['Kenya', 'Ethiopia', 'Uganda', 'Tanzania'],
+    cities: [
+      { name: 'Nairobi', lat: -1.29, lon: 36.82 },
+      { name: 'Addis Ababa', lat: 9.03, lon: 38.74 },
+      { name: 'Kampala', lat: 0.35, lon: 32.58 },
+    ],
+  },
+  {
+    id: 'Africa/Johannesburg',
+    region: 'South Africa',
+    abbr: ['SAST'],
+    aliases: ['South Africa'],
+    cities: [
+      { name: 'Johannesburg', lat: -26.2, lon: 28.05 },
+      { name: 'Cape Town', lat: -33.92, lon: 18.42 },
+    ],
+  },
 
-  // Europe & Africa
-  { id: 'UTC', city: 'UTC', region: 'Coordinated Universal Time', lat: 0, lon: 0, abbr: ['UTC'], aliases: ['GMT', 'Zulu', 'Z', 'universal', 'coordinated'] },
-  { id: 'Europe/London', city: 'London', region: 'UK & Ireland', lat: 51.51, lon: -0.13, abbr: ['GMT', 'BST'], aliases: ['GMT', 'BST', 'UK', 'Britain', 'Dublin', 'Edinburgh'] },
-  { id: 'Europe/Lisbon', city: 'Lisbon', region: 'Portugal', lat: 38.72, lon: -9.14, abbr: ['WET', 'WEST'], aliases: ['WET', 'WEST', 'Portugal'] },
-  { id: 'Europe/Paris', city: 'Paris', region: 'Central Europe', lat: 48.86, lon: 2.35, abbr: ['CET', 'CEST'], aliases: ['CET', 'CEST', 'France', 'Berlin', 'Madrid', 'Rome', 'Amsterdam', 'Brussels', 'Vienna', 'Zurich', 'Stockholm', 'Oslo', 'Copenhagen', 'Prague', 'Warsaw'] },
-  { id: 'Europe/Athens', city: 'Athens', region: 'Eastern Europe', lat: 37.98, lon: 23.73, abbr: ['EET', 'EEST'], aliases: ['EET', 'EEST', 'Greece', 'Helsinki', 'Bucharest', 'Kyiv', 'Kiev'] },
-  { id: 'Europe/Istanbul', city: 'Istanbul', region: 'Türkiye', lat: 41.01, lon: 28.98, abbr: ['TRT'], aliases: ['TRT', 'Turkey', 'Ankara'] },
-  { id: 'Europe/Moscow', city: 'Moscow', region: 'Russia West', lat: 55.76, lon: 37.62, abbr: ['MSK'], aliases: ['MSK', 'Russia'] },
-  { id: 'Africa/Lagos', city: 'Lagos', region: 'West Africa', lat: 6.52, lon: 3.38, abbr: ['WAT'], aliases: ['WAT', 'Nigeria', 'Accra', 'Algiers'] },
-  { id: 'Africa/Cairo', city: 'Cairo', region: 'Egypt', lat: 30.04, lon: 31.24, abbr: ['EET', 'EEST'], aliases: ['EET', 'Egypt'] },
-  { id: 'Africa/Nairobi', city: 'Nairobi', region: 'East Africa', lat: -1.29, lon: 36.82, abbr: ['EAT'], aliases: ['EAT', 'Kenya', 'Addis Ababa', 'Kampala'] },
-  { id: 'Africa/Johannesburg', city: 'Johannesburg', region: 'South Africa', lat: -26.2, lon: 28.05, abbr: ['SAST'], aliases: ['SAST', 'South Africa', 'Cape Town'] },
+  // ------------------------------------------- Middle East & South Asia
+  {
+    id: 'Asia/Jerusalem',
+    region: 'Israel',
+    abbr: ['IST', 'IDT'],
+    aliases: ['Israel'],
+    cities: [
+      { name: 'Jerusalem', lat: 31.77, lon: 35.21 },
+      { name: 'Tel Aviv', lat: 32.08, lon: 34.78 },
+    ],
+  },
+  {
+    id: 'Asia/Dubai',
+    region: 'Gulf',
+    abbr: ['GST'],
+    aliases: ['UAE', 'Emirates', 'Oman'],
+    cities: [
+      { name: 'Dubai', lat: 25.2, lon: 55.27 },
+      { name: 'Abu Dhabi', lat: 24.45, lon: 54.38 },
+      { name: 'Muscat', lat: 23.59, lon: 58.41 },
+    ],
+  },
+  {
+    id: 'Asia/Tehran',
+    region: 'Iran',
+    abbr: ['IRST'],
+    aliases: ['Iran', 'no DST'],
+    cities: [{ name: 'Tehran', lat: 35.69, lon: 51.39 }],
+  },
+  {
+    id: 'Asia/Karachi',
+    region: 'Pakistan',
+    abbr: ['PKT'],
+    aliases: ['Pakistan'],
+    cities: [
+      { name: 'Karachi', lat: 24.86, lon: 67.01 },
+      { name: 'Lahore', lat: 31.55, lon: 74.34 },
+      { name: 'Islamabad', lat: 33.68, lon: 73.05 },
+    ],
+  },
+  {
+    id: 'Asia/Kolkata',
+    region: 'India',
+    abbr: ['IST'],
+    aliases: ['India', 'Calcutta'],
+    cities: [
+      { name: 'Mumbai', lat: 19.08, lon: 72.88 },
+      { name: 'Delhi', lat: 28.61, lon: 77.21 },
+      { name: 'Bengaluru', lat: 12.97, lon: 77.59 },
+      { name: 'Chennai', lat: 13.08, lon: 80.27 },
+      { name: 'Hyderabad', lat: 17.39, lon: 78.49 },
+      { name: 'Kolkata', lat: 22.57, lon: 88.36 },
+    ],
+  },
+  {
+    id: 'Asia/Kathmandu',
+    region: 'Nepal',
+    abbr: ['NPT'],
+    aliases: ['Nepal'],
+    cities: [{ name: 'Kathmandu', lat: 27.72, lon: 85.32 }],
+  },
+  {
+    id: 'Asia/Dhaka',
+    region: 'Bangladesh',
+    abbr: ['BST'],
+    aliases: ['Bangladesh'],
+    cities: [{ name: 'Dhaka', lat: 23.81, lon: 90.41 }],
+  },
 
-  // Middle East & South Asia
-  { id: 'Asia/Jerusalem', city: 'Jerusalem', region: 'Israel', lat: 31.77, lon: 35.21, abbr: ['IST', 'IDT'], aliases: ['IST', 'Israel', 'Tel Aviv'] },
-  { id: 'Asia/Dubai', city: 'Dubai', region: 'Gulf', lat: 25.2, lon: 55.27, abbr: ['GST'], aliases: ['GST', 'UAE', 'Abu Dhabi', 'Muscat'] },
-  { id: 'Asia/Tehran', city: 'Tehran', region: 'Iran', lat: 35.69, lon: 51.39, abbr: ['IRST'], aliases: ['IRST', 'Iran'] },
-  { id: 'Asia/Karachi', city: 'Karachi', region: 'Pakistan', lat: 24.86, lon: 67.01, abbr: ['PKT'], aliases: ['PKT', 'Pakistan', 'Lahore', 'Islamabad'] },
-  { id: 'Asia/Kolkata', city: 'Mumbai', region: 'India', lat: 19.08, lon: 72.88, abbr: ['IST'], aliases: ['IST', 'India', 'Delhi', 'Bangalore', 'Bengaluru', 'Calcutta', 'Chennai', 'Hyderabad'] },
-  { id: 'Asia/Kathmandu', city: 'Kathmandu', region: 'Nepal', lat: 27.72, lon: 85.32, abbr: ['NPT'], aliases: ['NPT', 'Nepal'] },
-  { id: 'Asia/Dhaka', city: 'Dhaka', region: 'Bangladesh', lat: 23.81, lon: 90.41, abbr: ['BST'], aliases: ['BST', 'Bangladesh'] },
+  // --------------------------------------------- East & Southeast Asia
+  {
+    id: 'Asia/Bangkok',
+    region: 'Indochina',
+    abbr: ['ICT'],
+    aliases: ['Thailand', 'Vietnam', 'Indonesia'],
+    cities: [
+      { name: 'Bangkok', lat: 13.76, lon: 100.5 },
+      { name: 'Jakarta', lat: -6.21, lon: 106.85 },
+      { name: 'Hanoi', lat: 21.03, lon: 105.85 },
+      { name: 'Ho Chi Minh City', lat: 10.82, lon: 106.63 },
+    ],
+  },
+  {
+    id: 'Asia/Singapore',
+    region: 'Singapore & Malaysia',
+    abbr: ['SGT'],
+    aliases: ['Malaysia', 'Philippines'],
+    cities: [
+      { name: 'Singapore', lat: 1.35, lon: 103.82 },
+      { name: 'Kuala Lumpur', lat: 3.14, lon: 101.69 },
+      { name: 'Manila', lat: 14.6, lon: 120.98 },
+    ],
+  },
+  {
+    id: 'Asia/Shanghai',
+    region: 'China',
+    abbr: ['CST'],
+    aliases: ['China', 'no DST'],
+    cities: [
+      { name: 'Shanghai', lat: 31.23, lon: 121.47 },
+      { name: 'Beijing', lat: 39.9, lon: 116.41 },
+      { name: 'Hong Kong', lat: 22.32, lon: 114.17 },
+      { name: 'Shenzhen', lat: 22.54, lon: 114.06 },
+    ],
+  },
+  {
+    id: 'Asia/Taipei',
+    region: 'Taiwan',
+    abbr: ['CST'],
+    aliases: ['Taiwan', 'no DST'],
+    cities: [
+      { name: 'Taipei', lat: 25.03, lon: 121.57 },
+      { name: 'Taichung', lat: 24.15, lon: 120.67 },
+      { name: 'Kaohsiung', lat: 22.63, lon: 120.3 },
+    ],
+  },
+  {
+    id: 'Asia/Seoul',
+    region: 'Korea',
+    abbr: ['KST'],
+    aliases: ['Korea', 'no DST'],
+    cities: [
+      { name: 'Seoul', lat: 37.57, lon: 126.98 },
+      { name: 'Busan', lat: 35.18, lon: 129.08 },
+    ],
+  },
+  {
+    id: 'Asia/Tokyo',
+    region: 'Japan',
+    abbr: ['JST'],
+    aliases: ['Japan', 'no DST'],
+    cities: [
+      { name: 'Tokyo', lat: 35.68, lon: 139.69 },
+      { name: 'Osaka', lat: 34.69, lon: 135.5 },
+      { name: 'Kyoto', lat: 35.01, lon: 135.77 },
+    ],
+  },
 
-  // East & Southeast Asia
-  { id: 'Asia/Bangkok', city: 'Bangkok', region: 'Indochina', lat: 13.76, lon: 100.5, abbr: ['ICT'], aliases: ['ICT', 'Thailand', 'Hanoi', 'Vietnam', 'Jakarta', 'Saigon', 'Ho Chi Minh'] },
-  { id: 'Asia/Singapore', city: 'Singapore', region: 'Singapore & Malaysia', lat: 1.35, lon: 103.82, abbr: ['SGT'], aliases: ['SGT', 'Kuala Lumpur', 'Malaysia', 'Manila', 'Philippines'] },
-  { id: 'Asia/Shanghai', city: 'Shanghai', region: 'China', lat: 31.23, lon: 121.47, abbr: ['CST'], aliases: ['CST', 'China', 'Beijing', 'Hong Kong', 'Shenzhen', 'Macau'] },
-  { id: 'Asia/Taipei', city: 'Taipei', region: 'Taiwan', lat: 25.03, lon: 121.57, abbr: ['CST'], aliases: ['CST', 'Taiwan', 'Kaohsiung', 'Taichung'] },
-  { id: 'Asia/Seoul', city: 'Seoul', region: 'Korea', lat: 37.57, lon: 126.98, abbr: ['KST'], aliases: ['KST', 'Korea', 'Busan'] },
-  { id: 'Asia/Tokyo', city: 'Tokyo', region: 'Japan', lat: 35.68, lon: 139.69, abbr: ['JST'], aliases: ['JST', 'Japan', 'Osaka', 'Kyoto'] },
-
-  // Oceania
-  { id: 'Australia/Perth', city: 'Perth', region: 'Western Australia', lat: -31.95, lon: 115.86, abbr: ['AWST'], aliases: ['AWST', 'Western Australia'] },
-  { id: 'Australia/Adelaide', city: 'Adelaide', region: 'Central Australia', lat: -34.93, lon: 138.6, abbr: ['ACST', 'ACDT'], aliases: ['ACST', 'ACDT', 'South Australia'] },
-  { id: 'Australia/Brisbane', city: 'Brisbane', region: 'Queensland', lat: -27.47, lon: 153.03, abbr: ['AEST'], aliases: ['AEST', 'Queensland', 'no DST'] },
-  { id: 'Australia/Sydney', city: 'Sydney', region: 'Eastern Australia', lat: -33.87, lon: 151.21, abbr: ['AEST', 'AEDT'], aliases: ['AEST', 'AEDT', 'Melbourne', 'Canberra', 'Hobart'] },
-  { id: 'Pacific/Auckland', city: 'Auckland', region: 'New Zealand', lat: -36.85, lon: 174.76, abbr: ['NZST', 'NZDT'], aliases: ['NZST', 'NZDT', 'New Zealand', 'Wellington'] },
-  { id: 'Pacific/Fiji', city: 'Suva', region: 'Fiji', lat: -18.14, lon: 178.44, abbr: ['FJT'], aliases: ['FJT', 'Fiji'] },
+  // -------------------------------------------------------- Oceania
+  {
+    id: 'Australia/Perth',
+    region: 'Western Australia',
+    abbr: ['AWST'],
+    aliases: ['Western Australia', 'no DST'],
+    cities: [{ name: 'Perth', lat: -31.95, lon: 115.86 }],
+  },
+  {
+    id: 'Australia/Adelaide',
+    region: 'Central Australia',
+    abbr: ['ACST', 'ACDT'],
+    aliases: ['South Australia'],
+    cities: [{ name: 'Adelaide', lat: -34.93, lon: 138.6 }],
+  },
+  {
+    id: 'Australia/Brisbane',
+    region: 'Queensland',
+    abbr: ['AEST'],
+    aliases: ['Queensland', 'no DST'],
+    cities: [{ name: 'Brisbane', lat: -27.47, lon: 153.03 }],
+  },
+  {
+    id: 'Australia/Sydney',
+    region: 'Eastern Australia',
+    abbr: ['AEST', 'AEDT'],
+    aliases: ['New South Wales', 'Victoria'],
+    cities: [
+      { name: 'Sydney', lat: -33.87, lon: 151.21 },
+      { name: 'Melbourne', lat: -37.81, lon: 144.96 },
+      { name: 'Canberra', lat: -35.28, lon: 149.13 },
+      { name: 'Hobart', lat: -42.88, lon: 147.33 },
+    ],
+  },
+  {
+    id: 'Pacific/Auckland',
+    region: 'New Zealand',
+    abbr: ['NZST', 'NZDT'],
+    aliases: ['New Zealand'],
+    cities: [
+      { name: 'Auckland', lat: -36.85, lon: 174.76 },
+      { name: 'Wellington', lat: -41.29, lon: 174.78 },
+    ],
+  },
+  {
+    id: 'Pacific/Fiji',
+    region: 'Fiji',
+    abbr: ['FJT'],
+    aliases: ['Fiji'],
+    cities: [{ name: 'Suva', lat: -18.14, lon: 178.44 }],
+  },
 ]
 
-const byId = new Map(ZONES.map((z) => [z.id, z]))
+const byId = new Map(ZONES.map((zone) => [zone.id, zone]))
+
+/** A row in the user's list: a zone plus which of its cities they picked. */
+export interface Place {
+  zone: Zone
+  city: City
+}
 
 export function findZone(id: string): Zone | undefined {
   return byId.get(id)
 }
 
+/** The headline city, which is how a zone is named wherever one name will do. */
+export function headlineCity(zone: Zone): City {
+  return zone.cities[0]
+}
+
 /**
- * The local zone as a `Zone`, falling back to a synthesised entry when the
- * browser's zone isn't one of the curated ones.
+ * A zone as a `Zone`, synthesising an entry when the browser reports one that
+ * isn't curated.
  */
 export function resolveZone(id: string): Zone {
   const known = byId.get(id)
   if (known) return known
-  const city = id.split('/').pop()?.replace(/_/g, ' ') ?? id
-  return { id, city, region: id, lat: 0, lon: 0, abbr: [''], aliases: [] }
+  const name = id.split('/').pop()?.replace(/_/g, ' ') ?? id
+  return {
+    id,
+    region: id,
+    abbr: [''],
+    aliases: [],
+    cities: [{ name, lat: 0, lon: 0 }],
+  }
+}
+
+/** Resolves a saved `{ id, city }` pair back into a zone and its coordinates. */
+export function resolvePlace(id: string, cityName?: string): Place {
+  const zone = resolveZone(id)
+  const city =
+    (cityName && zone.cities.find((candidate) => candidate.name === cityName)) ||
+    headlineCity(zone)
+  return { zone, city }
 }
 
 export interface ZoneMatch {
   zone: Zone
-  /**
-   * The name that actually matched. Searching "Berlin" returns the Paris
-   * zone, and without this the result list looks like it ignored the query.
-   */
+  /** The city this result is offering — not always the zone's headline city. */
+  city: City
+  /** The term that matched, so an alias hit can explain itself. */
   matched: string
 }
 
 export function matchZones(query: string, limit = 12): ZoneMatch[] {
   const q = query.trim().toLowerCase()
-  if (!q) return ZONES.map((zone) => ({ zone, matched: zone.city }))
+  if (!q) {
+    return ZONES.map((zone) => {
+      const city = headlineCity(zone)
+      return { zone, city, matched: city.name }
+    })
+  }
 
-  const scored: { zone: Zone; matched: string; score: number }[] = []
+  const results: { zone: Zone; city: City; matched: string; score: number }[] = []
   for (const zone of ZONES) {
-    const haystacks = [zone.city, zone.region, zone.id.replace(/[_/]/g, ' '), ...zone.aliases]
     let best = 0
-    let matched = zone.city
-    for (const hay of haystacks) {
-      const h = hay.toLowerCase()
+    let city = headlineCity(zone)
+    let matched = city.name
+
+    const consider = (text: string, forCity?: City) => {
+      const h = text.toLowerCase()
       const score = h === q ? 100 : h.startsWith(q) ? 70 : h.includes(q) ? 40 : 0
-      if (score > best) {
-        best = score
-        matched = hay
+      if (!score) return
+      // A city match outranks a region or alias match of the same strength,
+      // so searching "Austin" offers Austin rather than Chicago.
+      const weighted = forCity ? score + 1 : score
+      if (weighted > best) {
+        best = weighted
+        matched = text
+        if (forCity) city = forCity
       }
     }
-    if (best) scored.push({ zone, matched, score: best })
+
+    for (const candidate of zone.cities) consider(candidate.name, candidate)
+    consider(zone.region)
+    consider(zone.id.replace(/[_/]/g, ' '))
+    for (const abbreviation of zone.abbr) if (abbreviation) consider(abbreviation)
+    for (const alias of zone.aliases) consider(alias)
+
+    if (best) results.push({ zone, city, matched, score: best })
   }
 
   // Ties keep the curated order, which runs roughly west to east.
-  scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, limit)
+  results.sort((a, b) => b.score - a.score)
+  return results.slice(0, limit)
 }
 
 export function searchZones(query: string, limit = 12): Zone[] {
@@ -140,7 +588,7 @@ function intlName(at: Date, timeZone: string, style: 'short' | 'long'): string {
     timeZone,
     timeZoneName: style,
   }).formatToParts(at)
-  return parts.find((p) => p.type === 'timeZoneName')?.value ?? ''
+  return parts.find((part) => part.type === 'timeZoneName')?.value ?? ''
 }
 
 /** True for the "GMT+9" / "UTC-03:00" strings browsers fall back to. */
@@ -183,7 +631,7 @@ export function formatOffset(minutes: number): string {
   return m ? `${sign}${h}:${String(m).padStart(2, '0')}` : `${sign}${h}`
 }
 
-/** "+3h ahead" / "5h 30m behind" / "same time", relative to a base zone. */
+/** "3h ahead" / "5h 30m behind" / "same time", relative to a base zone. */
 export function describeRelativeOffset(deltaMinutes: number): string {
   if (deltaMinutes === 0) return 'same time'
   const abs = Math.abs(deltaMinutes)
@@ -201,4 +649,24 @@ export function dstStatus(at: Date, timeZone: string): { observes: boolean; acti
   const observes = january !== july
   const current = offsetMinutes(at, timeZone)
   return { observes, active: observes && current === Math.max(january, july) }
+}
+
+/**
+ * A stable hue for a UTC offset, used to colour the map.
+ *
+ * The obvious choice — hue tracking longitude, one lap of the colour wheel per
+ * lap of the globe — puts neighbours 15° apart in hue, and 15° of hue is four
+ * shades of the same colour. Reading Pacific against Mountain then depends on
+ * telling two greens apart through a night shadow, which does not work.
+ *
+ * So the step is 105° instead. It divides into 360 often enough to give all 24
+ * hourly zones a distinct hue, while putting adjacent zones most of the way
+ * across the wheel from each other. Across the United States that lands on
+ * blue, pink, green and cyan for Pacific, Mountain, Central and Eastern.
+ */
+const HUE_STEP = 105
+
+export function offsetHue(offsetMinutesFromUtc: number): number {
+  const hours = Math.round(offsetMinutesFromUtc / 60)
+  return (((hours * HUE_STEP) % 360) + 360) % 360
 }

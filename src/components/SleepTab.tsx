@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { usePersistentState } from '../hooks/usePersistentState'
 import { formatDuration } from '../lib/duration'
 import {
   bedtimesFromWakeTime,
   defaultSleepSettings,
+  recommendedCycles,
   wakeTimesFromBedtime,
   type CycleOption,
   type SleepSettings,
@@ -11,14 +12,13 @@ import {
 import {
   MINUTE,
   formatDayLabel,
-  formatMinutesOfDay,
   formatTime,
   minutesOfDay,
   nextOccurrence,
   parseTimeInput,
   toTimeInputValue,
 } from '../lib/time'
-import { Card, CopyButton, Segmented, Slider } from './ui'
+import { Detail, Hero, Panel, Slider, Toggle } from './ui'
 
 type Direction = 'sleepNow' | 'wakeAt'
 
@@ -39,8 +39,14 @@ export function SleepTab({
   const [bedtimeInput, setBedtimeInput] = usePersistentState('sleep.bedtime', '')
   const [wakeInput, setWakeInput] = usePersistentState('sleep.wake', '07:00')
 
-  const update = (patch: Partial<SleepSettings>) =>
+  // Which option is showing as the answer. Null means "whatever is recommended",
+  // so changing a slider or the alarm time re-picks rather than going stale.
+  const [picked, setPicked] = useState<number | null>(null)
+
+  const update = (patch: Partial<SleepSettings>) => {
     setSettings((previous) => ({ ...previous, ...patch }))
+    setPicked(null)
+  }
 
   const bedtime = useMemo(() => {
     const minutes = parseTimeInput(bedtimeInput)
@@ -54,207 +60,169 @@ export function SleepTab({
     return nextOccurrence(now, timeZone, Math.floor(minutes / 60), minutes % 60)
   }, [wakeInput, now, timeZone])
 
-  const asleepAt = new Date(bedtime.getTime() + settings.latencyMinutes * MINUTE)
+  const options = useMemo(() => {
+    if (direction === 'sleepNow') return wakeTimesFromBedtime(bedtime, settings)
+    return wakeTime ? bedtimesFromWakeTime(wakeTime, settings) : []
+  }, [direction, bedtime, wakeTime, settings])
 
-  const options =
-    direction === 'sleepNow'
-      ? wakeTimesFromBedtime(bedtime, settings)
-      : wakeTime
-        ? bedtimesFromWakeTime(wakeTime, settings)
-        : []
+  const fallback = options.length ? recommendedCycles(options, now) : 0
+  const selected =
+    options.find((option) => option.cycles === picked) ??
+    options.find((option) => option.cycles === fallback)
 
   const fmt = (at: Date) => formatTime(at, { timeZone, hour12 })
-  const presetLabel = (preset: string) =>
-    formatMinutesOfDay(Number(preset.slice(0, 2)) * 60 + Number(preset.slice(3)), hour12)
+  const askingForBedtime = direction === 'wakeAt'
 
   return (
     <>
-      <Card>
-        <div className="card-head">
-          <Segmented
-            label="Direction"
-            value={direction}
-            onChange={setDirection}
-            options={[
-              { value: 'sleepNow', label: 'I go to bed at…' },
-              { value: 'wakeAt', label: 'I need to be up at…' },
-            ]}
+      <Panel>
+        <Toggle
+          label="What you already know"
+          value={direction}
+          onChange={(next) => {
+            setDirection(next)
+            setPicked(null)
+          }}
+          options={[
+            { value: 'sleepNow', label: 'I sleep at…' },
+            { value: 'wakeAt', label: 'I wake at…' },
+          ]}
+        />
+
+        <div className="row">
+          <div className="field">
+            <label className="label" htmlFor="sleep-time">
+              {askingForBedtime ? 'Alarm goes off' : 'Lights out'}
+            </label>
+            <input
+              id="sleep-time"
+              type="time"
+              value={
+                askingForBedtime
+                  ? wakeInput
+                  : bedtimeInput || toTimeInputValue(minutesOfDay(now, timeZone))
+              }
+              onChange={(event) => {
+                setPicked(null)
+                if (askingForBedtime) setWakeInput(event.target.value)
+                else setBedtimeInput(event.target.value)
+              }}
+            />
+          </div>
+          {!askingForBedtime && (
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={bedtimeInput === ''}
+              onClick={() => {
+                setBedtimeInput('')
+                setPicked(null)
+              }}
+            >
+              Right now
+            </button>
+          )}
+        </div>
+      </Panel>
+
+      {selected ? (
+        <>
+          <Hero
+            label={askingForBedtime ? 'Go to bed at' : 'Set your alarm for'}
+            value={fmt(selected.at)}
+            meta={
+              <>
+                {formatDayLabel(selected.at, now, timeZone)} · <b>{selected.cycles} cycles</b> ·{' '}
+                {formatDuration(selected.asleepMs)} asleep
+              </>
+            }
           />
-        </div>
 
-        {direction === 'sleepNow' ? (
-          <>
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="bedtime">Bedtime</label>
-                <input
-                  id="bedtime"
-                  type="time"
-                  value={bedtimeInput || toTimeInputValue(minutesOfDay(now, timeZone))}
-                  onChange={(event) => setBedtimeInput(event.target.value)}
+          <Panel title={askingForBedtime ? 'Or go to bed at' : 'Or wake at'}>
+            <ul className="options">
+              {options.map((option) => (
+                <OptionRow
+                  key={option.cycles}
+                  option={option}
+                  selected={option.cycles === selected.cycles}
+                  past={askingForBedtime && option.at.getTime() < now.getTime()}
+                  onPick={() => setPicked(option.cycles)}
+                  now={now}
+                  timeZone={timeZone}
+                  hour12={hour12}
                 />
-              </div>
-              <div className="chip-row">
-                <button
-                  type="button"
-                  className="chip"
-                  aria-pressed={bedtimeInput === ''}
-                  onClick={() => setBedtimeInput('')}
-                >
-                  Right now
-                </button>
-                {['22:00', '23:00', '00:00', '01:00'].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    className="chip"
-                    aria-pressed={bedtimeInput === preset}
-                    onClick={() => setBedtimeInput(preset)}
-                  >
-                    {presetLabel(preset)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="hint">
-              Lights out at {fmt(bedtime)} means you are likely asleep around{' '}
-              <strong>{fmt(asleepAt)}</strong>. Set the alarm for one of these and you wake at the
-              end of a cycle rather than the middle of one.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="waketime">Alarm time</label>
-                <input
-                  id="waketime"
-                  type="time"
-                  value={wakeInput}
-                  onChange={(event) => setWakeInput(event.target.value)}
-                />
-              </div>
-              <div className="chip-row">
-                {['05:30', '06:00', '06:30', '07:00', '08:00'].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    className="chip"
-                    aria-pressed={wakeInput === preset}
-                    onClick={() => setWakeInput(preset)}
-                  >
-                    {presetLabel(preset)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {wakeTime ? (
-              <p className="hint">
-                The next {fmt(wakeTime)} is {formatDayLabel(wakeTime, now, timeZone)}. Go to bed at
-                one of these to wake up at the end of a cycle.
-              </p>
-            ) : (
-              <p className="error">That alarm time doesn't read as a time.</p>
-            )}
-          </>
-        )}
-      </Card>
+              ))}
+            </ul>
 
-      {options.length > 0 && (
-        <Card
-          title={direction === 'sleepNow' ? 'Set your alarm for' : 'Go to bed at'}
-          note={`${settings.cycleMinutes}-minute cycles · ${settings.latencyMinutes} min to fall asleep`}
-        >
-          <ul className="cycle-list">
-            {options.map((option) => (
-              <CycleRow
-                key={option.cycles}
-                option={option}
-                now={now}
-                timeZone={timeZone}
-                hour12={hour12}
-                flagPast={direction === 'wakeAt'}
+            <Detail
+              summary={`${settings.latencyMinutes} min to fall asleep · ${settings.cycleMinutes}-minute cycles`}
+            >
+              <Slider
+                label="Time to fall asleep"
+                value={settings.latencyMinutes}
+                min={0}
+                max={60}
+                onChange={(latencyMinutes) => update({ latencyMinutes })}
+                format={(value) => `${value} min`}
               />
-            ))}
-          </ul>
-          <p className="hint">
-            Highlighted rows are the 7½ to 9 hours of actual sleep most adults do best on. Cycles
-            run longer towards morning in real sleep, so treat these as the nearest good minute,
-            not a deadline.
-          </p>
-        </Card>
+              <Slider
+                label="Sleep cycle length"
+                value={settings.cycleMinutes}
+                min={70}
+                max={120}
+                step={5}
+                onChange={(cycleMinutes) => update({ cycleMinutes })}
+                format={(value) => `${value} min`}
+              />
+              <p className="note">
+                Waking at the end of a cycle, rather than partway through one, is what makes a
+                wake-up feel clean. Defaults are the textbook 15 minutes to drop off and 90-minute
+                cycles; if a sleep tracker has told you your own numbers, use those.
+              </p>
+            </Detail>
+          </Panel>
+        </>
+      ) : (
+        <p className="alert">That alarm time doesn't read as a time.</p>
       )}
-
-      <Card title="Adjust the model">
-        <div className="field-row">
-          <div className="field">
-            <Slider
-              label="Time to fall asleep"
-              value={settings.latencyMinutes}
-              min={0}
-              max={60}
-              step={1}
-              onChange={(latencyMinutes) => update({ latencyMinutes })}
-              format={(value) => `${value} min`}
-            />
-          </div>
-          <div className="field">
-            <Slider
-              label="Sleep cycle length"
-              value={settings.cycleMinutes}
-              min={70}
-              max={120}
-              step={5}
-              onChange={(cycleMinutes) => update({ cycleMinutes })}
-              format={(value) => `${value} min`}
-            />
-          </div>
-        </div>
-        <p className="hint">
-          Defaults are 15 minutes to drop off and 90-minute cycles. If you habitually lie awake
-          longer, or a sleep tracker has told you your own cycle length, put those numbers in —
-          every answer above rebuilds from them.
-        </p>
-      </Card>
     </>
   )
 }
 
-function CycleRow({
+function OptionRow({
   option,
+  selected,
+  past,
+  onPick,
   now,
   timeZone,
   hour12,
-  flagPast,
 }: {
   option: CycleOption
+  selected: boolean
+  past: boolean
+  onPick: () => void
   now: Date
   timeZone: string
   hour12: boolean
-  flagPast: boolean
 }) {
-  const past = flagPast && option.at.getTime() < now.getTime()
-  const time = formatTime(option.at, { timeZone, hour12 })
-  const day = formatDayLabel(option.at, now, timeZone)
-
+  const inBedHours = option.inBedMs / (60 * MINUTE)
   return (
-    <li className={`cycle${option.ideal && !past ? ' is-ideal' : ''}`}>
-      <div>
-        <div className="cycle-time">{time}</div>
-        <div className="cycle-day">{day}</div>
-      </div>
-      <div className="cycle-meta">
-        <strong>{option.cycles} cycles</strong> · {formatDuration(option.asleepMs)} asleep
-        <br />
-        {formatDuration(option.inBedMs)} in bed
-      </div>
-      {past ? (
-        <span className="cycle-badge is-quiet">already passed</span>
-      ) : option.ideal ? (
-        <span className="cycle-badge">ideal</span>
-      ) : (
-        <CopyButton text={time} />
-      )}
+    <li>
+      <button
+        type="button"
+        className={`option${past ? ' is-past' : ''}`}
+        aria-pressed={selected}
+        onClick={onPick}
+      >
+        <span className="option-time tnum">{formatTime(option.at, { timeZone, hour12 })}</span>
+        <span className="option-meta">
+          {option.cycles} cycles · {formatDuration(option.asleepMs)} asleep
+          <br />
+          {formatDayLabel(option.at, now, timeZone)} · {inBedHours.toFixed(1)}h in bed
+        </span>
+        <span className="option-tag">{past ? 'passed' : option.ideal ? 'ideal' : ''}</span>
+      </button>
     </li>
   )
 }

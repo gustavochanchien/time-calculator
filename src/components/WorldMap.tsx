@@ -1,132 +1,178 @@
 import { useMemo } from 'react'
-import { WORLD_HEIGHT, WORLD_LAND_PATH, WORLD_WIDTH } from '../lib/worldPath'
 import { offsetMinutes } from '../lib/time'
-import type { Zone } from '../lib/zones'
+import { offsetHue, zoneAbbreviation, type Place } from '../lib/zones'
+import { WORLD_HEIGHT, WORLD_LAND_PATH, WORLD_WIDTH } from '../lib/worldPath'
 
 /**
- * An equirectangular world map with the selected zones pinned and their
- * longitude bands lit up.
+ * An equirectangular world map, banded and tinted by UTC offset.
  *
  * Equirectangular is the right projection here precisely because it is the
  * naive one: longitude maps linearly to x, so an hour of time zone is always
  * the same 15 degrees of width and the bands come out as clean vertical
- * stripes. The night shading is a rough solar terminator — enough to tell at a
- * glance who is asleep, not an almanac.
+ * stripes. Every band is tinted by its offset — hue tracks longitude, so the
+ * colour wheel wraps once around the globe and no two neighbouring zones
+ * share a colour. Across the continental United States that reads as four
+ * distinct stripes for Pacific, Mountain, Central and Eastern.
+ *
+ * The caveat, which the UI says out loud: these are 15° bands, not political
+ * boundaries. Real zone borders detour around state and national lines.
  */
+
+const BAND_DEGREES = 15
+
 export function WorldMap({
-  zones,
+  places,
   homeId,
   at,
 }: {
-  zones: Zone[]
+  places: Place[]
   homeId: string
   at: Date
 }) {
   const x = (lon: number) => ((lon + 180) / 360) * WORLD_WIDTH
   const y = (lat: number) => ((90 - lat) / 180) * WORLD_HEIGHT
 
-  // One band per zone, 15 degrees wide and centred on the zone's own offset
-  // rather than on its city, so Spain sits in its official band.
+  /** Which offsets are in the list, so their bands can be brought forward. */
+  const activeOffsets = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const place of places) {
+      const hours = Math.round(offsetMinutes(at, place.zone.id) / 60)
+      if (!map.has(hours)) map.set(hours, zoneAbbreviation(at, place.zone.id))
+    }
+    return map
+  }, [places, at])
+
   const bands = useMemo(() => {
-    const seen = new Set<number>()
-    const result: { offset: number; left: number; width: number }[] = []
-    for (const zone of zones) {
-      const offset = offsetMinutes(at, zone.id)
-      const hours = offset / 60
-      if (seen.has(hours)) continue
-      seen.add(hours)
-      const centre = hours * 15
-      result.push({ offset: hours, left: x(centre - 7.5), width: (15 / 360) * WORLD_WIDTH })
+    const result = []
+    for (let hours = -12; hours <= 12; hours += 1) {
+      const centre = hours * BAND_DEGREES
+      const left = x(centre - BAND_DEGREES / 2)
+      const width = (BAND_DEGREES / 360) * WORLD_WIDTH
+      const active = activeOffsets.has(hours)
+      result.push({
+        hours,
+        left: Math.max(0, left),
+        width: Math.min(width, WORLD_WIDTH - Math.max(0, left)),
+        active,
+        label: activeOffsets.get(hours) ?? '',
+        hue: offsetHue(hours * 60),
+      })
     }
     return result
-  }, [zones, at])
+  }, [activeOffsets])
 
   const nightPath = useMemo(() => solarNightPath(at, x, y), [at])
 
   const pins = useMemo(() => {
-    const placed: { zone: Zone; cx: number; cy: number; labelY: number }[] = []
-    for (const zone of zones) {
-      if (zone.lat === 0 && zone.lon === 0) continue // synthesised / UTC
-      const cx = x(zone.lon)
-      const cy = y(zone.lat)
-      // Nudge labels that would collide with one already placed nearby.
-      const crowded = placed.some(
-        (other) => Math.abs(other.cx - cx) < 42 && Math.abs(other.labelY - (cy - 7)) < 9,
-      )
-      placed.push({ zone, cx, cy, labelY: crowded ? cy + 15 : cy - 7 })
+    interface Pin {
+      key: string
+      name: string
+      cx: number
+      cy: number
+      labelY: number
+      halfWidth: number
+      home: boolean
+    }
+
+    // Labels are centred on their pin, so two nearby cities collide by
+    // default. Try a few vertical slots and take the first one that is clear,
+    // measuring overlap against each label's own width rather than a fixed
+    // radius — "Los Angeles" needs far more room than "Rome".
+    const SLOTS = [-8, 17, -20, 29, -32]
+    const placed: Pin[] = []
+
+    for (const place of places) {
+      const { lat, lon } = place.city
+      if (lat === 0 && lon === 0) continue // UTC and synthesised zones have no spot
+      const cx = x(lon)
+      const cy = y(lat)
+      const halfWidth = place.city.name.length * 2.6 + 4
+
+      const collides = (labelY: number) =>
+        placed.some(
+          (other) =>
+            Math.abs(other.labelY - labelY) < 9 &&
+            Math.abs(other.cx - cx) < other.halfWidth + halfWidth,
+        )
+
+      const slot = SLOTS.find((offset) => !collides(cy + offset)) ?? SLOTS[SLOTS.length - 1]
+
+      placed.push({
+        key: `${place.zone.id}:${place.city.name}`,
+        name: place.city.name,
+        cx,
+        cy,
+        labelY: cy + slot,
+        halfWidth,
+        home: place.zone.id === homeId,
+      })
     }
     return placed
-  }, [zones])
+  }, [places, homeId])
 
   return (
-    <div className="map-wrap">
-      <svg
-        className="map"
-        viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
-        role="img"
-        aria-label={`World map with ${zones.length} time zones pinned`}
-      >
-        {bands.map((band) => (
-          <rect
-            key={band.offset}
-            className="band is-lit"
-            x={band.left}
-            y={0}
-            width={band.width}
-            height={WORLD_HEIGHT}
-          />
+    <svg
+      className="map"
+      viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
+      role="img"
+      aria-label={`World map, ${places.length} places pinned, shaded by time zone`}
+    >
+      {bands.map((band) => (
+        <rect
+          key={band.hours}
+          /* Hue carries the meaning, so the fill is computed, not themed. */
+          x={band.left}
+          y={0}
+          width={band.width}
+          height={WORLD_HEIGHT}
+          fill={`hsl(${band.hue} 72% 62% / ${band.active ? 0.34 : 0.07})`}
+        />
+      ))}
+
+      {bands.map((band) => (
+        <line
+          key={`grid-${band.hours}`}
+          className="grid"
+          x1={band.left}
+          y1={0}
+          x2={band.left}
+          y2={WORLD_HEIGHT}
+        />
+      ))}
+
+      <path className="land" d={WORLD_LAND_PATH} />
+      <path className="night" d={nightPath} />
+
+      {/* Abbreviations along the top edge, for the bands actually in use. */}
+      {bands
+        .filter((band) => band.active && band.label)
+        .map((band) => (
+          <text
+            key={`label-${band.hours}`}
+            className="band-label"
+            x={band.left + band.width / 2}
+            y={13}
+            textAnchor="middle"
+          >
+            {band.label}
+          </text>
         ))}
 
-        {Array.from({ length: 25 }, (_, i) => {
-          const lon = -180 + i * 15
-          return (
-            <line
-              key={lon}
-              className="meridian"
-              x1={x(lon)}
-              y1={0}
-              x2={x(lon)}
-              y2={WORLD_HEIGHT}
-            />
-          )
-        })}
-
-        <path className="land" d={WORLD_LAND_PATH} />
-        <path className="night" d={nightPath} />
-
-        {pins.map(({ zone, cx, cy, labelY }) => {
-          const home = zone.id === homeId
-          return (
-            <g key={zone.id}>
-              <circle className="pin-halo" cx={cx} cy={cy} r={6} />
-              <circle className={`pin${home ? ' is-home' : ''}`} cx={cx} cy={cy} r={2.8} />
-              <text
-                className="pin-label"
-                x={cx}
-                y={labelY}
-                textAnchor={cx > WORLD_WIDTH - 60 ? 'end' : cx < 60 ? 'start' : 'middle'}
-              >
-                {zone.city}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-      <div className="map-legend">
-        <span>
-          <i className="swatch-home" /> your zone
-        </span>
-        <span>
-          <i className="swatch-zone" /> compared zone
-        </span>
-        <span>
-          <i className="swatch-band" /> that zone&rsquo;s 15° band
-        </span>
-        <span>
-          <i className="swatch-night" /> night right now
-        </span>
-      </div>
-    </div>
+      {pins.map((pin) => (
+        <g key={pin.key}>
+          <circle className="halo" cx={pin.cx} cy={pin.cy} r={6} />
+          <circle className={`pin${pin.home ? ' is-home' : ''}`} cx={pin.cx} cy={pin.cy} r={3} />
+          <text
+            className="pin-label"
+            x={pin.cx}
+            y={pin.labelY}
+            textAnchor={pin.cx > WORLD_WIDTH - 60 ? 'end' : pin.cx < 60 ? 'start' : 'middle'}
+          >
+            {pin.name}
+          </text>
+        </g>
+      ))}
+    </svg>
   )
 }
 
@@ -146,14 +192,13 @@ function solarNightPath(at: Date, x: (lon: number) => number, y: (lat: number) =
   const declination =
     -23.44 * Math.cos(((2 * Math.PI) / 365.24) * (dayOfYear + 9.5)) * (Math.PI / 180)
 
-  const utcHours =
-    at.getUTCHours() + at.getUTCMinutes() / 60 + at.getUTCSeconds() / 3600
+  const utcHours = at.getUTCHours() + at.getUTCMinutes() / 60 + at.getUTCSeconds() / 3600
   const subsolarLon = -15 * (utcHours - 12)
 
   // The terminator: the latitude where the sun sits exactly on the horizon for
   // each longitude. tan(lat) = -cos(lon - subsolar) / tan(declination).
   const points: string[] = []
-  const edgeLat = declination > 0 ? -90 : 90 // the pole in darkness
+  const edgeLat = declination > 0 ? -90 : 90 // the pole currently in darkness
   for (let lon = -180; lon <= 180; lon += 2) {
     const hourAngle = ((lon - subsolarLon) * Math.PI) / 180
     const lat = (Math.atan(-Math.cos(hourAngle) / Math.tan(declination)) * 180) / Math.PI

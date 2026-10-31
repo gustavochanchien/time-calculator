@@ -4,6 +4,7 @@ import {
   cycleAlignment,
   defaultSleepSettings,
   nearestCycleBoundary,
+  recommendedCycles,
   wakeTimesFromBedtime,
 } from '../sleep'
 
@@ -81,5 +82,29 @@ describe('nearestCycleBoundary', () => {
     // Five cycles ends at 06:45, fifteen minutes before the alarm.
     expect(result.at.toISOString()).toBe('2026-07-02T06:45:00.000Z')
     expect(result.offsetMs).toBe(-15 * m)
+  })
+})
+
+describe('recommendedCycles', () => {
+  const now = new Date('2026-07-01T23:00:00Z')
+
+  it('leads with five cycles when going to bed now', () => {
+    expect(recommendedCycles(wakeTimesFromBedtime(now), now)).toBe(5)
+  })
+
+  it('still leads with five when there is plenty of time before the alarm', () => {
+    const wake = new Date('2026-07-02T09:00:00Z') // ten hours away
+    expect(recommendedCycles(bedtimesFromWakeTime(wake), now)).toBe(5)
+  })
+
+  it('offers the most sleep still available when the ideal bedtime has gone', () => {
+    // Alarm in 6h15m: the 5- and 4-cycle bedtimes are already behind us.
+    const wake = new Date('2026-07-02T05:15:00Z')
+    expect(recommendedCycles(bedtimesFromWakeTime(wake), now)).toBe(3)
+  })
+
+  it('falls back to the shortest night when every bedtime has passed', () => {
+    const wake = new Date('2026-07-02T02:00:00Z') // three hours away
+    expect(recommendedCycles(bedtimesFromWakeTime(wake), now)).toBe(3)
   })
 })

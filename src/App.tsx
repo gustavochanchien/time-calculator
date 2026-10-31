@@ -3,16 +3,18 @@ import { CountdownTab } from './components/CountdownTab'
 import { SleepTab } from './components/SleepTab'
 import { TimeMathTab } from './components/TimeMathTab'
 import { ZonesTab } from './components/ZonesTab'
+import { GlobeIcon, MathIcon, MoonIcon, SlidersIcon, TimerIcon } from './components/icons'
+import { Menu, Toggle } from './components/ui'
 import { useNow } from './hooks/useNow'
 import { usePersistentState } from './hooks/usePersistentState'
 import { formatDate, formatTime, localTimeZone } from './lib/time'
-import { resolveZone, zoneAbbreviation } from './lib/zones'
+import { headlineCity, resolveZone, zoneAbbreviation } from './lib/zones'
 
 const TABS = [
-  { id: 'sleep', label: 'Sleep', key: '1' },
-  { id: 'countdown', label: 'Countdown', key: '2' },
-  { id: 'math', label: 'Add / subtract', key: '3' },
-  { id: 'zones', label: 'Time zones', key: '4' },
+  { id: 'sleep', label: 'Sleep', key: '1', Icon: MoonIcon },
+  { id: 'countdown', label: 'Timer', key: '2', Icon: TimerIcon },
+  { id: 'math', label: 'Math', key: '3', Icon: MathIcon },
+  { id: 'zones', label: 'Zones', key: '4', Icon: GlobeIcon },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -30,7 +32,7 @@ export default function App() {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
-  // Number keys jump between tabs, since this is a thing you reach for at 1am.
+  // Number keys jump between tabs, for the desktop case.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -46,27 +48,49 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1 className="wordmark">Time Calculator</h1>
-        <div className="clock">
-          <b>{formatTime(now, { hour12 })}</b>
+        <h1 className="brand">Time Calculator</h1>
+        <div className="now">
+          <b className="tnum">{formatTime(now, { hour12 })}</b>
           <span>
-            {formatDate(now)} · {resolveZone(zone).city} {zoneAbbreviation(now, zone)}
+            {formatDate(now)} · {zoneAbbreviation(now, zone) || headlineCity(resolveZone(zone)).name}
           </span>
         </div>
+        <Menu label="Settings" icon={<SlidersIcon />}>
+          <span className="label">Clock</span>
+          <Toggle
+            label="Clock format"
+            value={hour12 ? '12' : '24'}
+            onChange={(value) => setHour12(value === '12')}
+            options={[
+              { value: '12', label: '12-hour' },
+              { value: '24', label: '24-hour' },
+            ]}
+          />
+          <span className="label">Theme</span>
+          <Toggle
+            label="Theme"
+            value={theme}
+            onChange={setTheme}
+            options={[
+              { value: 'dark', label: 'Dark' },
+              { value: 'light', label: 'Light' },
+            ]}
+          />
+        </Menu>
       </header>
 
       <nav className="tabs" role="tablist" aria-label="Calculators">
-        {TABS.map((candidate) => (
+        {TABS.map(({ id, label, Icon }) => (
           <button
-            key={candidate.id}
+            key={id}
             type="button"
             role="tab"
             className="tab"
-            aria-selected={tab === candidate.id}
-            onClick={() => setTab(candidate.id)}
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
           >
-            {candidate.label}
-            <kbd>{candidate.key}</kbd>
+            <Icon />
+            {label}
           </button>
         ))}
       </nav>
@@ -78,23 +102,7 @@ export default function App() {
         {tab === 'zones' && <ZonesTab now={now} localZone={zone} hour12={hour12} />}
       </main>
 
-      <footer className="footer">
-        <div className="row">
-          <button type="button" className="icon-button" onClick={() => setHour12((v) => !v)}>
-            {hour12 ? 'Switch to 24-hour' : 'Switch to 12-hour'}
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-          >
-            {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-          </button>
-        </div>
-        <p>
-          Everything runs in the browser against your own clock. Nothing is sent anywhere.
-        </p>
-      </footer>
+      <footer className="footer">Runs entirely in your browser. Nothing is sent anywhere.</footer>
     </div>
   )
 }
