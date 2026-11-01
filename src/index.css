@@ -99,6 +99,23 @@ button {
   max-width: 720px;
   margin: 0 auto;
   padding: 20px 18px 56px;
+  /*
+   * iOS Safari pops its collapsed toolbar back open the moment a page stops
+   * being scrollable, and that resizes the viewport under you. The tabs are
+   * very different heights — Sleep and Zones overflow a phone, Timer and Math
+   * don't — so switching to Timer made the whole screen jump. Staying a pixel
+   * taller than the large viewport keeps the page scrollable whether the
+   * toolbar is open or collapsed, so Safari stops resizing it.
+   */
+  min-height: calc(100vh + 1px);
+  min-height: calc(100lvh + 1px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* With a floor under the page height, short tabs need the footer held down. */
+.app > main {
+  flex: 1;
 }
 
 .topbar {
@@ -163,9 +180,11 @@ button {
   flex: none;
 }
 
-.tab:hover {
-  color: var(--ink);
-  background: var(--panel-2);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--ink);
+    background: var(--panel-2);
+  }
 }
 
 .tab[aria-selected='true'] {
@@ -256,8 +275,10 @@ button {
   font-weight: 550;
 }
 
-.toggle button:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .toggle button:hover {
+    color: var(--ink);
+  }
 }
 
 .toggle button[aria-pressed='true'] {
@@ -311,8 +332,10 @@ input::placeholder {
   font-size: 15px;
 }
 
-input:hover {
-  border-color: var(--line-2);
+@media (hover: hover) {
+  input:hover {
+    border-color: var(--line-2);
+  }
 }
 
 /* A number you nudge, rather than a row of preset buttons to scan. */
@@ -338,10 +361,12 @@ input:hover {
   line-height: 1;
 }
 
-.step:hover {
-  border-color: var(--line-2);
-  color: var(--ink);
-  background: var(--panel);
+@media (hover: hover) {
+  .step:hover {
+    border-color: var(--line-2);
+    color: var(--ink);
+    background: var(--panel);
+  }
 }
 
 .btn {
@@ -360,9 +385,11 @@ input:hover {
   white-space: nowrap;
 }
 
-.btn:hover {
-  border-color: var(--line-2);
-  color: var(--ink);
+@media (hover: hover) {
+  .btn:hover {
+    border-color: var(--line-2);
+    color: var(--ink);
+  }
 }
 
 .btn[aria-pressed='true'] {
@@ -462,8 +489,10 @@ input:hover {
   text-align: left;
 }
 
-.option:hover {
-  border-color: var(--line-2);
+@media (hover: hover) {
+  .option:hover {
+    border-color: var(--line-2);
+  }
 }
 
 .option[aria-pressed='true'] {
@@ -536,8 +565,10 @@ input:hover {
   text-align: left;
 }
 
-.zone:hover {
-  border-color: var(--line-2);
+@media (hover: hover) {
+  .zone:hover {
+    border-color: var(--line-2);
+  }
 }
 
 .zone.is-home {
@@ -624,24 +655,39 @@ input:hover {
   line-height: 1;
 }
 
-.zone-x:hover {
-  background: var(--panel);
-  color: var(--ink);
+@media (hover: hover) {
+  .zone-x:hover {
+    background: var(--panel);
+    color: var(--ink);
+  }
 }
 
 /* ---------------------------------------------------------- zone search */
 
 .search {
-  position: relative;
   margin-top: 10px;
+}
+
+/*
+ * The dropdown anchors to this, not to .search: .search also wraps the hint
+ * paragraph below, which would push the results a line and a half too low.
+ */
+.search-box {
+  position: relative;
 }
 
 .results {
   position: absolute;
   z-index: 20;
   inset: calc(100% + 6px) 0 auto 0;
-  max-height: 272px;
+  /*
+   * Capped to the room actually left below the input — the phone tab bar is
+   * fixed over the bottom of the screen, and an open keyboard takes most of
+   * what's left. ZoneSearch measures that and sets --fit.
+   */
+  max-height: min(272px, var(--fit, 272px));
   overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
   margin: 0;
   padding: 4px;
@@ -664,9 +710,14 @@ input:hover {
   text-align: left;
 }
 
-.results li[data-active='true'] button,
-.results button:hover {
+.results li[data-active='true'] button {
   background: var(--panel-2);
+}
+
+@media (hover: hover) {
+  .results button:hover {
+    background: var(--panel-2);
+  }
 }
 
 .results .r-city {
@@ -802,8 +853,10 @@ input:hover {
   transform: rotate(-135deg) translate(-2px, -2px);
 }
 
-.detail > summary:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .detail > summary:hover {
+    color: var(--ink);
+  }
 }
 
 .slider {
@@ -855,9 +908,11 @@ input:hover {
   display: none;
 }
 
-.menu > summary:hover {
-  color: var(--ink);
-  border-color: var(--line-2);
+@media (hover: hover) {
+  .menu > summary:hover {
+    color: var(--ink);
+    border-color: var(--line-2);
+  }
 }
 
 .menu svg {
@@ -889,7 +944,8 @@ input:hover {
 /* ================================================================ footer */
 
 .footer {
-  margin-top: 22px;
+  margin-top: auto;
+  padding-top: 22px;
   color: var(--ink-3);
   font-size: 12.5px;
   text-align: center;
@@ -980,18 +1036,7 @@ input:hover {
     display: none;
   }
 
-  .map .band-label {
-  fill: var(--ink-2);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  paint-order: stroke;
-  stroke: var(--panel-2);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
-}
-
-.map .pin-label {
+  .map .pin-label {
     font-size: 14px;
     stroke-width: 3.8;
   }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePersistentState } from '../hooks/usePersistentState'
 import {
   clockParts,
@@ -37,6 +37,11 @@ const DEFAULT_ZONES: SavedZone[] = [
   { id: 'Europe/London', city: 'London' },
   { id: 'Asia/Taipei', city: 'Taipei' },
 ]
+
+/** Room the fixed phone tab bar needs below the dropdown, plus a little air. */
+const TAB_BAR_CLEARANCE = 76
+/** Below this the list is too short to be worth opening; let it overhang instead. */
+const MIN_RESULTS_HEIGHT = 132
 
 export function ZonesTab({
   now,
@@ -214,6 +219,8 @@ function ZoneSearch({
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
   const blurTimeout = useRef<number>(0)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
 
   const results = useMemo(
     () => matchZones(query).filter((m) => !taken.includes(`${m.zone.id}:${m.city.name}`)),
@@ -230,63 +237,101 @@ function ZoneSearch({
     setActive(0)
   }
 
+  const showing = open && results.length > 0
+
+  /*
+   * How tall the dropdown may be. On a phone the bottom of the window is not
+   * the bottom of the usable area: the tab bar is fixed over it, and focusing
+   * the input opens a keyboard that covers most of what is left. Only
+   * visualViewport reports the keyboard, so measure against that and
+   * re-measure whenever it moves.
+   */
+  useEffect(() => {
+    if (!showing) return
+    const fit = () => {
+      const box = boxRef.current
+      const list = listRef.current
+      if (!box || !list) return
+      const viewport = window.visualViewport
+      const floor = (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0)
+      const room = floor - box.getBoundingClientRect().bottom - TAB_BAR_CLEARANCE
+      list.style.setProperty('--fit', `${Math.max(MIN_RESULTS_HEIGHT, Math.round(room))}px`)
+    }
+    fit()
+    const viewport = window.visualViewport
+    viewport?.addEventListener('resize', fit)
+    viewport?.addEventListener('scroll', fit)
+    window.addEventListener('scroll', fit, true)
+    window.addEventListener('resize', fit)
+    return () => {
+      viewport?.removeEventListener('resize', fit)
+      viewport?.removeEventListener('scroll', fit)
+      window.removeEventListener('scroll', fit, true)
+      window.removeEventListener('resize', fit)
+    }
+  }, [showing, results.length])
+
   return (
     <div className="search">
-      <input
-        type="text"
-        autoComplete="off"
-        aria-label="Add a place"
-        placeholder="Add a city, country or abbreviation…"
-        value={query}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // Let a click on a result land before the list unmounts.
-          blurTimeout.current = window.setTimeout(() => setOpen(false), 120)
-        }}
-        onChange={(event) => {
-          setQuery(event.target.value)
-          setOpen(true)
-          setActive(0)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown') {
-            event.preventDefault()
-            setActive((i) => Math.min(i + 1, results.length - 1))
-          } else if (event.key === 'ArrowUp') {
-            event.preventDefault()
-            setActive((i) => Math.max(i - 1, 0))
-          } else if (event.key === 'Enter') {
-            event.preventDefault()
-            pick(active)
-          } else if (event.key === 'Escape') {
-            setOpen(false)
-          }
-        }}
-      />
-      {open && results.length > 0 && (
-        <ul className="results">
-          {results.map(({ zone, city, matched }, index) => (
-            <li key={`${zone.id}:${city.name}`} data-active={index === active}>
-              <button
-                type="button"
-                onMouseEnter={() => setActive(index)}
-                onClick={() => pick(index)}
-              >
-                <span className="r-city">{city.name}</span>
-                <span className="r-sub">
-                  {zone.region}
-                  {matched !== city.name && matched !== headlineCity(zone).name
-                    ? ` · ${matched}`
-                    : ''}
-                </span>
-                <span className="r-off">
-                  {zoneAbbreviation(at, zone.id)} · UTC{formatOffset(offsetMinutes(at, zone.id))}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* The dropdown anchors to this box alone — the hint below it is part of
+          .search, and anchoring to that dropped the list a line and a half. */}
+      <div className="search-box" ref={boxRef}>
+        <input
+          type="text"
+          autoComplete="off"
+          aria-label="Add a place"
+          placeholder="Add a city, country or abbreviation…"
+          value={query}
+          onFocus={() => setOpen(true)}
+          onBlur={() => {
+            // Let a click on a result land before the list unmounts.
+            blurTimeout.current = window.setTimeout(() => setOpen(false), 120)
+          }}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+            setActive(0)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              setActive((i) => Math.min(i + 1, results.length - 1))
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              setActive((i) => Math.max(i - 1, 0))
+            } else if (event.key === 'Enter') {
+              event.preventDefault()
+              pick(active)
+            } else if (event.key === 'Escape') {
+              setOpen(false)
+            }
+          }}
+        />
+        {showing && (
+          <ul className="results" ref={listRef}>
+            {results.map(({ zone, city, matched }, index) => (
+              <li key={`${zone.id}:${city.name}`} data-active={index === active}>
+                <button
+                  type="button"
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => pick(index)}
+                >
+                  <span className="r-city">{city.name}</span>
+                  <span className="r-sub">
+                    {zone.region}
+                    {matched !== city.name && matched !== headlineCity(zone).name
+                      ? ` · ${matched}`
+                      : ''}
+                  </span>
+                  <span className="r-off">
+                    {zoneAbbreviation(at, zone.id)} · UTC{formatOffset(offsetMinutes(at, zone.id))}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <p className="note">
         Tap a row to compare everything against it.{' '}
         {ZONES.reduce((total, zone) => total + zone.cities.length, 0)} cities across {ZONES.length}{' '}

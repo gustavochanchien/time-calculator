@@ -9,6 +9,7 @@ import {
   formatDayLabel,
   formatTime,
   fromClockParts,
+  nextOccurrence,
   parseTimeInput,
 } from '../lib/time'
 import { CopyButton, Hero, Panel } from './ui'
@@ -30,20 +31,34 @@ export function CountdownTab({
   const [dateInput, setDateInput] = usePersistentState('countdown.date', '')
   const [timeInput, setTimeInput] = usePersistentState('countdown.time', '09:00')
 
-  const activeDate = dateInput || toDateInputValue(now, timeZone)
+  const minutes = parseTimeInput(timeInput)
+
+  /*
+   * Until a date is picked, count down to the next time that clock reading
+   * comes round. Defaulting to today means the answer is a negative countdown
+   * for most of the day, which is no use to anyone setting a timer.
+   */
+  const activeDate = useMemo(() => {
+    if (dateInput) return dateInput
+    if (minutes === null) return toDateInputValue(now, timeZone)
+    const next = nextOccurrence(now, timeZone, Math.floor(minutes / 60), minutes % 60)
+    return toDateInputValue(next, timeZone)
+  }, [dateInput, minutes, now, timeZone])
 
   const target = useMemo(() => {
-    const minutes = parseTimeInput(timeInput)
     const [year, month, day] = activeDate.split('-').map(Number)
     if (minutes === null || !year || !month || !day) return null
     return fromClockParts(
       { year, month, day, hour: Math.floor(minutes / 60), minute: minutes % 60, second: 0 },
       timeZone,
     )
-  }, [activeDate, timeInput, timeZone])
+  }, [activeDate, minutes, timeZone])
 
-  const remaining = target ? target.getTime() - now.getTime() : 0
-  const past = remaining < 0
+  const signed = target ? target.getTime() - now.getTime() : 0
+  const past = signed < 0
+  // "That was" and "ago" already carry the sign; a minus on the number too
+  // reads as a third negative, and pastes into a timer app as nonsense.
+  const remaining = Math.abs(signed)
   const setRelativeDay = (days: number) =>
     setDateInput(toDateInputValue(new Date(now.getTime() + days * DAY), timeZone))
 
