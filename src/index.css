@@ -284,10 +284,11 @@ button {
 .toggle button[aria-pressed='true'] {
   background: var(--panel);
   color: var(--ink);
-  box-shadow: var(--shadow);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
 }
 
 :root[data-theme='light'] .toggle button[aria-pressed='true'] {
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.1);
   color: var(--accent-ink);
 }
 
@@ -319,6 +320,7 @@ input[type='text'] {
   width: 100%;
   min-height: 50px;
   padding: 0 13px;
+  min-width: 0;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -439,7 +441,12 @@ input::placeholder {
   margin: 6px 0 0;
   font-size: clamp(42px, 13vw, 60px);
   font-weight: 700;
-  line-height: 1;
+  /*
+   * Not 1. The ascenders and descenders of SF Pro need about 1.16em, so a
+   * line-height of 1 left the glyphs hanging ~5px outside the element on
+   * every tab — measurably, and visibly crowding the label above it.
+   */
+  line-height: 1.16;
   letter-spacing: -0.035em;
 }
 
