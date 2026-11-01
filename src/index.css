@@ -320,7 +320,17 @@ input[type='text'] {
   width: 100%;
   min-height: 50px;
   padding: 0 13px;
+  /*
+   * WebKit sizes a date or time control from its own rendered fields and will
+   * not shrink it below that, so on iOS these ran about 26pt wider than the
+   * panel and their right edge hung outside it. appearance:none drops that
+   * intrinsic sizing; the min/max pair makes sure nothing can reintroduce it.
+   * Chrome keeps its picker indicator either way.
+   */
+  -webkit-appearance: none;
+  appearance: none;
   min-width: 0;
+  max-width: 100%;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
