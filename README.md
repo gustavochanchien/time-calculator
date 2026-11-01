@@ -112,9 +112,15 @@ Below 640px the tab bar moves to the bottom inside the safe area, inputs are
 16px so iOS doesn't zoom on focus, tap targets are 36px or more, and reference
 detail like UTC offsets drops out of rows that can't fit it.
 
-On a phone the layout is a fixed shell: `.app` is exactly `100svh` tall, the
+On a phone the layout is a fixed shell: `.app` is exactly `100dvh` tall, the
 tab bar is the last item in it and `main` takes the slack and scrolls itself.
-Nothing is `position: fixed`. That matters because iOS positions a fixed bar
+Nothing is `position: fixed`. The unit has to be `dvh`, not `svh`: `svh` is a
+static number — the viewport at its *smallest*, with Safari's toolbar showing
+— so installed to the home screen, or in Safari with the toolbar collapsed,
+an `svh` shell ends short of the bottom and the bar floats above it. `dvh` is
+the one that means "as tall as the viewport actually is".
+
+Taking `position: fixed` off the bar matters because iOS positions a fixed bar
 against the *layout* viewport — the viewport with the toolbar hidden — and
 only hides the difference while a page is scrolling, so a fixed bottom bar
 drifts off the bottom of the screen on any page that fits. Taking the page

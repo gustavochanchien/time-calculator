@@ -112,13 +112,14 @@ button {
   margin: 0 auto;
   padding: 20px 18px 56px;
   /*
-   * svh is the viewport with Safari's toolbar showing — the smallest it gets.
-   * Sleep, Timer and Math are sized to fit inside it, so those three never
-   * scroll and Safari never resizes them. Zones is longer than any phone and
-   * scrolls; coming back from it the toolbar reopens once, then settles.
+   * dvh, not svh: svh is a static number — the viewport at its SMALLEST, with
+   * Safari's toolbar showing — and it does not track what is on screen now.
+   * Installed to the home screen, or in Safari with the toolbar collapsed,
+   * the real viewport is bigger, and a shell sized in svh ends short of the
+   * bottom. dvh is the one that means "as tall as the viewport actually is".
    */
   min-height: 100vh;
-  min-height: 100svh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
@@ -1054,10 +1055,11 @@ input::placeholder {
    * the screen; Zones, still scrolling, was fine. Here the shell is exactly
    * one viewport tall, the bar is the last item in it, and main takes the
    * slack and scrolls itself. Nothing is fixed, so nothing can be misplaced.
+   * The height has to be dvh — see the note on .app above.
    */
   .app {
     height: 100vh;
-    height: 100svh;
+    height: 100dvh;
     min-height: 0;
     padding: max(8px, env(safe-area-inset-top)) 14px 0;
   }
