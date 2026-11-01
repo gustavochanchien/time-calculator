@@ -98,7 +98,7 @@ export function CountdownTab({
         <div className="btn-row">
           <button
             type="button"
-            className="btn"
+            className="btn btn-set"
             aria-pressed={days === 0}
             onClick={() => setRelativeDay(0)}
           >
@@ -106,7 +106,7 @@ export function CountdownTab({
           </button>
           <button
             type="button"
-            className="btn"
+            className="btn btn-set"
             aria-pressed={days === 1}
             onClick={() => setRelativeDay(1)}
           >

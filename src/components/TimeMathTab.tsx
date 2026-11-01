@@ -130,7 +130,7 @@ function ShiftMode({
           </div>
           <button
             type="button"
-            className="btn"
+            className="btn btn-set"
             aria-pressed={baseInput === ''}
             onClick={() => setBaseInput('')}
           >
@@ -216,7 +216,7 @@ function BetweenMode({ now, timeZone }: { now: Date; timeZone: string; hour12: b
         <div className="btn-row">
           <button
             type="button"
-            className="btn"
+            className="btn btn-set"
             onClick={() => setFromInput(toTimeInputValue(minutesOfDay(now, timeZone)))}
           >
             Start now

@@ -112,7 +112,7 @@ export function SleepTab({
           {!askingForBedtime && (
             <button
               type="button"
-              className="btn"
+              className="btn btn-set"
               aria-pressed={bedtimeInput === ''}
               onClick={() => {
                 setBedtimeInput('')

@@ -112,6 +112,22 @@ Below 640px the tab bar moves to the bottom inside the safe area, inputs are
 16px so iOS doesn't zoom on focus, tap targets are 36px or more, and reference
 detail like UTC offsets drops out of rows that can't fit it.
 
+On a phone the layout is a fixed shell: `.app` is exactly `100svh` tall, the
+tab bar is the last item in it and `main` takes the slack and scrolls itself.
+Nothing is `position: fixed`. That matters because iOS positions a fixed bar
+against the *layout* viewport — the viewport with the toolbar hidden — and
+only hides the difference while a page is scrolling, so a fixed bottom bar
+drifts off the bottom of the screen on any page that fits. Taking the page
+out of the scroll path also means Safari's toolbar never collapses, which is
+what used to resize the whole screen on a tab switch.
+
+Buttons are coloured by what they do, so an action reads before its label:
+purple is what is selected right now (tabs, toggles, option and zone rows),
+green fills a field with a value (Right now, Today, Start now, and the Copy
+button on success), amber removes something, and plain means adjust or
+rearrange (steppers, Swap, Copy at rest, settings). Three hues and a neutral,
+deliberately — a fifth colour is another thing to decode.
+
 Sleep, Timer and Math are built to fit one phone screen without scrolling.
 Safari with its toolbar showing leaves about 613pt on an iPhone 13 mini and
 645pt on a 13, and `.app` takes `min-height: 100svh` — the viewport at its
