@@ -109,8 +109,19 @@ hour you most need it. Settings live behind a disclosure or the header menu
 rather than on the screen.
 
 Below 640px the tab bar moves to the bottom inside the safe area, inputs are
-16px so iOS doesn't zoom on focus, tap targets are 40px or more, and reference
+16px so iOS doesn't zoom on focus, tap targets are 36px or more, and reference
 detail like UTC offsets drops out of rows that can't fit it.
+
+Sleep, Timer and Math are built to fit one phone screen without scrolling.
+Safari with its toolbar showing leaves about 613pt on an iPhone 13 mini and
+645pt on a 13, and `.app` takes `min-height: 100svh` — the viewport at its
+smallest — so those three never scroll and Safari never resizes them. Paying
+for that: on a phone the footer and the explanatory notes are hidden, the two
+panel headings go (each restates the thing directly beneath it), cycle rows
+are one line instead of two and drop the in-bed figure, and the list shows
+four alternatives rather than five — the one dropped is the longest night, at
+over ten hours. A wide screen still gets all of it. Zones is longer than any
+phone and scrolls, which is the one place the toolbar can still reopen.
 
 Settings — theme, 12/24-hour, sleep model, your zone list — persist to
 `localStorage`, wrapped in try/catch so a private window or blocked site data

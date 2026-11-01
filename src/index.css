@@ -100,15 +100,13 @@ button {
   margin: 0 auto;
   padding: 20px 18px 56px;
   /*
-   * iOS Safari pops its collapsed toolbar back open the moment a page stops
-   * being scrollable, and that resizes the viewport under you. The tabs are
-   * very different heights — Sleep and Zones overflow a phone, Timer and Math
-   * don't — so switching to Timer made the whole screen jump. Staying a pixel
-   * taller than the large viewport keeps the page scrollable whether the
-   * toolbar is open or collapsed, so Safari stops resizing it.
+   * svh is the viewport with Safari's toolbar showing — the smallest it gets.
+   * Sleep, Timer and Math are sized to fit inside it, so those three never
+   * scroll and Safari never resizes them. Zones is longer than any phone and
+   * scrolls; coming back from it the toolbar reopens once, then settles.
    */
-  min-height: calc(100vh + 1px);
-  min-height: calc(100lvh + 1px);
+  min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
 }
@@ -525,6 +523,9 @@ input::placeholder {
 }
 
 .option-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   color: var(--ink-2);
   font-size: 13px;
   line-height: 1.35;
@@ -971,12 +972,113 @@ input::placeholder {
 /* ================================================================= phone */
 
 @media (max-width: 640px) {
+  /*
+   * Everything below is about fitting Sleep, Timer and Math inside one phone
+   * screen. Safari with its toolbar showing leaves roughly 613pt on a 13 mini,
+   * and the four tabs were 730-980pt tall, so the padding, the hero, the rows
+   * and the prose all come down together. Zones is still longer than a phone.
+   */
   .app {
-    padding: max(14px, env(safe-area-inset-top)) 14px calc(80px + env(safe-area-inset-bottom));
+    padding: max(8px, env(safe-area-inset-top)) 14px calc(60px + env(safe-area-inset-bottom));
   }
 
   .topbar {
-    margin-bottom: 14px;
+    margin-bottom: 6px;
+  }
+
+  /* The tab bar is the floor of the usable area; every point it gives back is
+     a point the content gets. */
+  .tabs {
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
+  }
+
+  .tab {
+    min-height: 44px;
+  }
+
+  .panel {
+    padding: 10px 12px;
+  }
+
+  /*
+   * The two panel headings on a phone are "Or wake at" over a list of tappable
+   * times and "Where that is" over a world map. Both restate what is directly
+   * under them, and dropping them is what gives the Sleep tab room to spare
+   * rather than fitting by two pixels.
+   */
+  .panel-head {
+    display: none;
+  }
+
+  .panel + .panel,
+  .panel + .hero,
+  .hero + .panel {
+    margin-top: 6px;
+  }
+
+  .toggle + .row,
+  .toggle + .stepper,
+  .stepper + .toggle,
+  .row + .toggle,
+  .panel .label + .stepper {
+    margin-top: 8px;
+  }
+
+  .label {
+    margin-bottom: 5px;
+  }
+
+  .toggle {
+    padding: 2px;
+  }
+
+  .toggle button {
+    min-height: 36px;
+  }
+
+  /* The toggle above already names the field ("I wake at…" / "Shift a time"),
+     so the label under it is saying it twice. */
+  .toggle + .row .label {
+    display: none;
+  }
+
+  input[type='time'],
+  input[type='date'],
+  input[type='text'] {
+    min-height: 44px;
+  }
+
+  .step {
+    width: 44px;
+  }
+
+  .btn {
+    min-height: 34px;
+  }
+
+  .btn-row {
+    margin-top: 8px;
+  }
+
+  /* The explanations earn their place on a desktop. On a phone they are the
+     difference between seeing the answer and scrolling for it. */
+  .note,
+  .footer {
+    display: none;
+  }
+
+  .detail {
+    margin-top: 6px;
+    padding-top: 0;
+  }
+
+  .detail > summary {
+    padding: 6px 2px;
+    font-size: 13px;
+  }
+
+  .slider {
+    padding: 4px 2px 8px;
   }
 
   .now {
@@ -1021,28 +1123,78 @@ input::placeholder {
     flex-basis: 100%;
   }
 
+  /* A field paired with a button keeps the button alongside it rather than
+     spending a whole line on it. Only multi-field rows stack. */
+  .row:has(> .btn) {
+    flex-wrap: nowrap;
+  }
+
+  .row:has(> .btn) > .field {
+    flex-basis: auto;
+  }
+
   .hero {
-    padding: 20px 14px 16px;
+    padding: 12px 12px 10px;
+  }
+
+  .hero-value {
+    font-size: clamp(30px, 10vw, 42px);
+  }
+
+  .hero-meta {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  .hero-actions {
+    margin-top: 10px;
+  }
+
+  .options {
+    gap: 2px;
+  }
+
+  /*
+   * Four alternatives on a phone, not five. The fifth is the longest night
+   * (seven cycles, over ten hours) and it is the one worth losing to keep the
+   * answer and the options on one screen. A wide screen still shows all five.
+   */
+  .options li:nth-child(n + 5) {
+    display: none;
   }
 
   .option {
-    min-height: 60px;
+    min-height: 41px;
     gap: 10px;
-    padding-inline: 12px;
+    padding: 3px 12px;
   }
 
   .option-time {
-    min-width: 78px;
-    font-size: 19px;
+    min-width: 72px;
+    font-size: 18px;
   }
 
+  /* One line instead of two: the row is half the height and still says the
+     cycle count, how long you are asleep and which day you wake. */
   .option-meta {
+    flex-direction: row;
     font-size: 12px;
     line-height: 1.4;
   }
 
+  /* Flex items eat the whitespace between them, so the separator carries its
+     own spacing rather than relying on spaces in the content string. */
+  .option-meta-2::before {
+    content: '·';
+    margin: 0 0.35em;
+  }
+
   .option-tag {
     font-size: 11px;
+  }
+
+  .zone {
+    min-height: 54px;
   }
 
   .zone-clock b {

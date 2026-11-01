@@ -216,10 +216,17 @@ function OptionRow({
         onClick={onPick}
       >
         <span className="option-time tnum">{formatTime(option.at, { timeZone, hour12 })}</span>
+        {/* Two lines on a wide screen, one on a phone — see .option-meta. The
+            in-bed figure is the first thing to go; asleep time is the point. */}
         <span className="option-meta">
-          {option.cycles} cycles · {formatDuration(option.asleepMs)} asleep
-          <br />
-          {formatDayLabel(option.at, now, timeZone)} · {inBedHours.toFixed(1)}h in bed
+          <span>
+            {option.cycles} cycles · {formatDuration(option.asleepMs)}
+            <span className="wide-only"> asleep</span>
+          </span>
+          <span className="option-meta-2">
+            {formatDayLabel(option.at, now, timeZone)}
+            <span className="wide-only"> · {inBedHours.toFixed(1)}h in bed</span>
+          </span>
         </span>
         <span className="option-tag">{past ? 'passed' : option.ideal ? 'ideal' : ''}</span>
       </button>
