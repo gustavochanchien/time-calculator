@@ -223,7 +223,7 @@ function BetweenMode({ now, timeZone }: { now: Date; timeZone: string; hour12: b
           </button>
           <button
             type="button"
-            className="btn"
+            className="btn btn-util"
             onClick={() => {
               setFromInput(toInput)
               setToInput(fromInput)

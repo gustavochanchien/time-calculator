@@ -15,6 +15,12 @@
   --good: #3fd0a0;
   --good-ink: #5ee0b6;
   --good-wash: #3fd0a01c;
+  --info: #58a6ff;
+  --info-ink: #8ec5ff;
+  --info-wash: #58a6ff1c;
+  --bad: #f2555a;
+  --bad-ink: #ff8f94;
+  --bad-wash: #f2555a1c;
   --warn: #f0b64b;
 
   --r-lg: 16px;
@@ -41,6 +47,12 @@
   --good: #0f9b70;
   --good-ink: #0c7b58;
   --good-wash: #0f9b7014;
+  --info: #1f6feb;
+  --info-ink: #1a5ac4;
+  --info-wash: #1f6feb12;
+  --bad: #d3303a;
+  --bad-ink: #b1202a;
+  --bad-wash: #d3303a10;
   --warn: #a96b12;
 
   --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 12px 28px -18px rgb(16 24 40 / 0.25);
@@ -364,7 +376,7 @@ input::placeholder {
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  color: var(--ink-2);
+  color: var(--info-ink);
   font-size: 19px;
   font-weight: 500;
   line-height: 1;
@@ -372,8 +384,8 @@ input::placeholder {
 
 @media (hover: hover) {
   .step:hover {
-    border-color: var(--line-2);
-    color: var(--ink);
+    border-color: color-mix(in srgb, var(--info) 55%, transparent);
+    color: var(--info-ink);
     background: var(--panel);
   }
 }
@@ -404,6 +416,11 @@ input::placeholder {
     border-color: color-mix(in srgb, var(--good) 55%, transparent);
     color: var(--good-ink);
   }
+
+  .btn-util:hover {
+    border-color: color-mix(in srgb, var(--info) 55%, transparent);
+    color: var(--info-ink);
+  }
 }
 
 .btn[aria-pressed='true'] {
@@ -415,13 +432,15 @@ input::placeholder {
 /*
  * Buttons are coloured by what they do, so an action reads before its label:
  *
- *   purple  what is selected right now — tabs, toggles, option and zone rows
- *   green   fills a field with a value — Right now, Today, Start now
- *   amber   removes something
- *   plain   adjusts or rearranges — steppers, Swap, Copy, settings
+ *   purple  this is the current choice — tabs, toggles, option and zone rows
+ *   green   give me this value — Right now, Today, Tomorrow, Start now
+ *   blue    work with the value I have — the steppers, Swap, Copy
+ *   red     delete this — the x on a zone row
  *
- * Three hues and a neutral, no more: the point is to be learnable at a
- * glance, and a fifth colour would just be another thing to decode.
+ * Amber stays out of it on purpose: it means a message you need to read
+ * (.alert), not a thing you can press, and overloading it would cost that.
+ * Plain neutral is left for controls that are not actions on your data —
+ * the settings menu and the disclosures.
  */
 .btn-set {
   color: var(--good-ink);
@@ -434,7 +453,14 @@ input::placeholder {
   color: var(--good-ink);
 }
 
-/* Green again on the way out: the value landed where you asked. */
+/* Blue: these act on the value already on screen rather than supplying one. */
+.btn-util {
+  color: var(--info-ink);
+  border-color: color-mix(in srgb, var(--info) 26%, var(--line));
+}
+
+/* Green on the way out, whatever the button's resting colour: the value
+   landed where you asked. */
 .btn-copy.is-done {
   background: var(--good-wash);
   border-color: color-mix(in srgb, var(--good) 50%, transparent);
@@ -701,20 +727,25 @@ input::placeholder {
   background: none;
   border: 0;
   border-radius: var(--r-sm);
-  color: var(--ink-3);
+  /* Muted red at rest, full red on contact. On a phone there is no hover to
+     reveal it with, so the warning has to be visible before the tap. Mixed
+     from --bad-ink rather than --bad so it still clears AA at 17px: 5.25 on
+     dark, 5.06 on light. */
+  color: color-mix(in srgb, var(--bad-ink) 60%, var(--ink-3));
   font-size: 17px;
   line-height: 1;
 }
 
 @media (hover: hover) {
   .zone-x:hover {
-    background: color-mix(in srgb, var(--warn) 15%, transparent);
-    color: var(--warn);
+    background: var(--bad-wash);
+    color: var(--bad-ink);
   }
 }
 
 .zone-x:active {
-  color: var(--warn);
+  background: var(--bad-wash);
+  color: var(--bad-ink);
 }
 
 /* ---------------------------------------------------------- zone search */

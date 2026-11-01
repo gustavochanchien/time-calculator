@@ -122,11 +122,22 @@ out of the scroll path also means Safari's toolbar never collapses, which is
 what used to resize the whole screen on a tab switch.
 
 Buttons are coloured by what they do, so an action reads before its label:
-purple is what is selected right now (tabs, toggles, option and zone rows),
-green fills a field with a value (Right now, Today, Start now, and the Copy
-button on success), amber removes something, and plain means adjust or
-rearrange (steppers, Swap, Copy at rest, settings). Three hues and a neutral,
-deliberately — a fifth colour is another thing to decode.
+
+| | |
+|---|---|
+| purple | this is the current choice — tabs, toggles, option and zone rows |
+| green | give me this value — Right now, Today, Tomorrow, Start now |
+| blue | work with the value I have — the steppers, Swap, Copy |
+| red | delete this — the x on a zone row |
+
+Amber stays out of it: it means a message you need to read (`.alert`), not a
+thing you can press, and overloading it would cost that. Plain neutral is
+left for controls that aren't actions on your data — the settings menu and
+the disclosures. Copy turns green on success whatever its resting colour,
+since that is the value landing where you asked. Every one of these clears
+WCAG AA against its own background in both themes; the remove x is the
+tightest at 5.25 (dark) and 5.06 (light), which is why it is mixed from
+`--bad-ink` rather than `--bad`.
 
 Sleep, Timer and Math are built to fit one phone screen without scrolling.
 Safari with its toolbar showing leaves about 613pt on an iPhone 13 mini and
